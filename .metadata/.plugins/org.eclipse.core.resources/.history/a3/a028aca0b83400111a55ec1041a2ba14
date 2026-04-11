@@ -1,0 +1,12 @@
+#ifndef LPM_H
+#define LPM_h
+#include <stdint.h>
+
+
+#define SYSC       0x4001E000
+
+#define MSTPCRB    *(volatile uint32_t*)(SYSC + 0x700)
+#define MSTPCRC    *(volatile uint32_t*)(SYSC + 0x704)
+#define MSTPCRD    *(volatile uint32_t*)(SYSC + 0x708)
+
+#endif

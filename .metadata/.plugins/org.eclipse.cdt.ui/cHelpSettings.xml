@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<cHelpSettings>
+                                    
+    
+    
+    
+    
+    
+    
+    
+    <project name="TESTING_1">
+                                                                
+        
+        
+        
+        
+        
+        
+        <provider id="org.eclipse.cdt.ui.provider1"/>
+                                                                
+        
+        
+        
+        
+        
+        
+        <provider id="org.eclipse.linuxtools.cdt.libhover.provider"/>
+                                                            
+    
+    
+    
+    
+    
+    
+    </project>
+                                
+
+    
+    
+    
+    
+    
+    
+    <project name="TESTING_2">
+        <provider id="org.eclipse.cdt.ui.provider1"/>
+        <provider id="org.eclipse.linuxtools.cdt.libhover.provider"/>
+    </project>
+                        
+
+
+
+
+
+</cHelpSettings>

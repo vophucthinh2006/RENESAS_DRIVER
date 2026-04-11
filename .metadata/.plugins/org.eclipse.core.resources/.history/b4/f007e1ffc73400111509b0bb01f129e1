@@ -1,0 +1,9 @@
+#ifndef SCI_H
+#define SCI_H
+#include "LPM.h"
+#include "RWP.h"
+#include <stdint.h>
+
+void SCI_Clock_Init(SCI_t peripheral);
+
+#endif

@@ -1,0 +1,16 @@
+#include "LPM.h"
+
+void LPM_Unlock(LPM_PERIPHERAL_t peripheral){
+    switch (peripheral){
+        case LPM_SCI0: MSTPCRB |= (1 << 31); break;
+        case LPM_SCI1: MSTPCRB |= (1 << 30); break;
+        case LPM_SCI2: MSTPCRB |= (1 << 29); break;
+        case LPM_SCI3: MSTPCRB |= (1 << 28); break;
+        case LPM_SCI4: MSTPCRB |= (1 << 27); break;
+        case LPM_SCI5: MSTPCRB |= (1 << 26); break;
+        case LPM_SCI6: MSTPCRB |= (1 << 25); break;
+        case LPM_SCI7: MSTPCRB |= (1 << 24); break;
+        case LPM_SCI8: MSTPCRB |= (1 << 23); break;
+        case LPM_SCI9: MSTPCRB |= (1 << 22); break;
+    }
+}

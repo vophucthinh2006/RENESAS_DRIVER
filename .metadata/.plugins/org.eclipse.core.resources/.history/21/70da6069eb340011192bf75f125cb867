@@ -1,0 +1,31 @@
+#ifndef SCI_H
+#define SCI_H
+#include "LPM.h"
+#include "RWP.h"
+#include <stdint.h>
+
+#define SCI_BASE 0x40118000UL
+#define SCI_STRIDE 0x100UL
+
+#define SCI0_BASE (SCI_BASE + SCI_STRIDE * 0)
+#define SCI1_BASE (SCI_BASE + SCI_STRIDE * 1)
+#define SCI2_BASE (SCI_BASE + SCI_STRIDE * 2)
+#define SCI3_BASE (SCI_BASE + SCI_STRIDE * 3)
+#define SCI4_BASE (SCI_BASE + SCI_STRIDE * 4)
+#define SCI5_BASE (SCI_BASE + SCI_STRIDE * 5)
+#define SCI6_BASE (SCI_BASE + SCI_STRIDE * 6)
+#define SCI7_BASE (SCI_BASE + SCI_STRIDE * 7)
+#define SCI8_BASE (SCI_BASE + SCI_STRIDE * 8)
+#define SCI9_BASE (SCI_BASE + SCI_STRIDE * 9)
+
+#define SCI0_SMR   *(volatile uint8_t*)(SCI0_BASE + 0x00)
+#define SCI0_BRR   *(volatile uint8_t*)(SCI0_BASE + 0x01)
+#define SCI0_SCR   *(volatile uint8_t*)(SCI0_BASE + 0x02)
+#define SCI0_TDR   *(volatile uint8_t*)(SCI0_BASE + 0x03)
+#define SCI0_SSR   *(volatile uint8_t*)(SCI0_BASE + 0x04)
+#define SCI0_RDR   *(volatile uint8_t*)(SCI0_BASE + 0x05)
+#define SCI0_SEMR  *(volatile uint8_t*)(SCI0_BASE + 0x07)
+
+void SCI_Clock_Init(SCI_t peripheral);
+
+#endif

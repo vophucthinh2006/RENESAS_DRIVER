@@ -1,0 +1,7 @@
+#include "../Include/SCI.h"
+
+void SCI_Clock_Init(SCI_t peripheral){
+    RWP_Unlock_Clock_MSTP();
+    LPM_Unlock(peripheral);
+    RWP_Lock_Clock_MSTP();
+}

@@ -1,0 +1,8 @@
+#ifndef RWP_H
+#define RWP_H
+
+#define SYSC        0x4001E000
+
+#define PRCR        *(volatile uint16_t*)(SYSC + 0x3FE)
+
+#endif

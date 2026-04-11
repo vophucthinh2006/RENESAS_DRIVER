@@ -1,0 +1,18 @@
+#ifndef LPM_H
+#define LPM_H
+#include <stdint.h>
+
+#define SYSC       0x4001E000
+
+#define MSTPCRB    *(volatile uint32_t*)(SYSC + 0x700)
+#define MSTPCRC    *(volatile uint32_t*)(SYSC + 0x704)
+#define MSTPCRD    *(volatile uint32_t*)(SYSC + 0x708)
+
+typedef enum{
+    LPM_SCI,
+    LPM_IIC
+}LPM_PERIPHERAL_t;
+
+void LPM_Unlock(LPM_PERIPHERAL_t peripheral);
+
+#endif

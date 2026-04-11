@@ -1,0 +1,41 @@
+Extracting support files...
+14:48:00 **** Incremental Build of configuration Debug for project TESTING_2 ****
+make -r --output-sync -j12 all 
+Building file: ../Driver/Source/CGC.c
+../Driver/Source/CGC.c:1:10: fatal error: 'CGC.h' file not found
+    1 | #include "CGC.h"
+      |          ^~~~~~~
+1 error generated.
+make: *** [Driver/Source/subdir.mk:41: Driver/Source/CGC.o] Error 1
+Building file: ../Driver/Source/LPM.c
+make: *** Waiting for unfinished jobs....
+../Driver/Source/LPM.c:1:10: fatal error: 'LPM.h' file not found
+Building file: ../Driver/Source/RWP.c
+    1 | #include "LPM.h"
+      |          ^~~~~~~
+1 error generated.
+make: *** [Driver/Source/subdir.mk:41: Driver/Source/LPM.o] Error 1
+Building file: ../Driver/Source/GPIO.c
+../Driver/Source/RWP.c:1:10: fatal error: 'RWP.h' file not found
+    1 | #include "RWP.h"
+      |          ^~~~~~~
+1 error generated.
+Building file: ../Driver/Source/IIC.c
+make: *** [Driver/Source/subdir.mk:41: Driver/Source/RWP.o] Error 1
+Building file: ../Driver/Source/SCI.c
+../Driver/Source/GPIO.c:1:10: fatal error: 'GPIO.h' file not found
+    1 | #include "GPIO.h"
+      |          ^~~~~~~~
+1 error generated.
+make: *** [Driver/Source/subdir.mk:41: Driver/Source/GPIO.o] Error 1
+../Driver/Source/IIC.c:1:10: fatal error: 'IIC.h' file not found
+    1 | #include "IIC.h"
+      |          ^~~~~~~
+1 error generated.
+make: *** [Driver/Source/subdir.mk:41: Driver/Source/IIC.o] Error 1
+../Driver/Source/SCI.c:1:10: fatal error: 'SCI.h' file not found
+    1 | #include "SCI.h"
+      |          ^~~~~~~
+1 error generated.
+make: *** [Driver/Source/subdir.mk:41: Driver/Source/SCI.o] Error 1
+"make -r --output-sync -j12 all" terminated with exit code 2. Build might be incomplete.
