@@ -1,9 +1,0 @@
-#ifndef CLOCK_H
-#define CLOCK_H
-#include "LPM.h"
-#include "RWP.h"
-#include <stdint.h>
-
-void CLOCK_SCI_Init(SCI_t peripheral);
-
-#endif

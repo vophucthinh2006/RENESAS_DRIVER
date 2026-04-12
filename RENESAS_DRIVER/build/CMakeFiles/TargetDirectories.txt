@@ -1,0 +1,4 @@
+D:/Renesas/TESTING_2/TESTING_2/build/CMakeFiles/open_rasc_TESTING_2.dir
+D:/Renesas/TESTING_2/TESTING_2/build/CMakeFiles/TESTING_2.elf.dir
+D:/Renesas/TESTING_2/TESTING_2/build/CMakeFiles/edit_cache.dir
+D:/Renesas/TESTING_2/TESTING_2/build/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.useCMakePresets": "never",
+    "cmake.configureOnOpen": true,
+    "cmake.preferredGenerators": ["Ninja"]
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.cmake-tools",
+      "ms-vscode.cpptools",
+      "marus25.cortex-debug",
+      "renesas-svd.renesas-debug"
+    ]
+  }
+}

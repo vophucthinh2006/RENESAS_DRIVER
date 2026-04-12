@@ -1,0 +1,14 @@
+# ninja log v6
+6	233	7977202261447552	CMakeFiles/TESTING_2.elf.dir/Driver/Source/GPIO.c.obj	8e6eeae68f0b2394
+128	319	7977202262700060	CMakeFiles/TESTING_2.elf.dir/src/test/test_rwp.c.obj	2d09bd25944d1184
+20	333	7977202261610138	CMakeFiles/TESTING_2.elf.dir/Driver/Source/LPM.c.obj	a96881216c8bffdb
+58	336	7977202261974042	CMakeFiles/TESTING_2.elf.dir/src/hal_entry.c.obj	c0fd39dedbb1c5aa
+2	340	7977202261410508	CMakeFiles/TESTING_2.elf.dir/Driver/Source/CGC.c.obj	728688499dedba78
+81	349	7977202262202516	CMakeFiles/TESTING_2.elf.dir/src/startup.c.obj	1ef88165b58a1a51
+12	353	7977202261528830	CMakeFiles/TESTING_2.elf.dir/Driver/Source/IIC.c.obj	d713da745daba1c1
+28	371	7977202261735900	CMakeFiles/TESTING_2.elf.dir/Driver/Source/RWP.c.obj	6a3c18b3d53c9b69
+65	379	7977202262095335	CMakeFiles/TESTING_2.elf.dir/src/main.c.obj	e78806e7ba097812
+87	382	7977202262417347	CMakeFiles/TESTING_2.elf.dir/src/test/test_gpio.c.obj	8494f7243b889095
+41	383	7977202261906068	CMakeFiles/TESTING_2.elf.dir/Driver/Source/SCI.c.obj	bd599e24e816da28
+108	415	7977202262593166	CMakeFiles/TESTING_2.elf.dir/src/test/test_runner.c.obj	f26ef3e4a57af7d5
+416	623	7977202265561064	TESTING_2.elf	a1de528e7cf39fed
