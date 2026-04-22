@@ -3,135 +3,101 @@
 #include <stdint.h>
 #include "LPM.h"
 
-#define SCI_BASE   0x40118000UL
-#define SCI_STRIDE 0x100UL
+/*
+ * SCI.h — Serial Communication Interface (UART mode) driver for RA6M5.
+ *
+ * Register access uses a single SCI_REG8(n, offset) macro, where n is the
+ * channel number (0-9). This replaces the previous 70-line flat macro block.
+ *
+ * PCLKB: RA6M5 boots from MOCO 8 MHz. No CGC init is performed yet (Phase 6).
+ * Update PCLKB when CGC is configured.
+ *
+ * BRR formula (SEMR: BGDM=1, ABCS=1 → effective divider = 4):
+ *   BRR = PCLKB / (4 × baudrate) − 1
+ *   Example: 8 MHz / (4 × 115200) − 1 = 16  → actual 117 647 baud (2.1% error)
+ */
 
-#define SCI0_BASE  (SCI_BASE + SCI_STRIDE * 0)
-#define SCI1_BASE  (SCI_BASE + SCI_STRIDE * 1)
-#define SCI2_BASE  (SCI_BASE + SCI_STRIDE * 2)
-#define SCI3_BASE  (SCI_BASE + SCI_STRIDE * 3)
-#define SCI4_BASE  (SCI_BASE + SCI_STRIDE * 4)
-#define SCI5_BASE  (SCI_BASE + SCI_STRIDE * 5)
-#define SCI6_BASE  (SCI_BASE + SCI_STRIDE * 6)
-#define SCI7_BASE  (SCI_BASE + SCI_STRIDE * 7)
-#define SCI8_BASE  (SCI_BASE + SCI_STRIDE * 8)
-#define SCI9_BASE  (SCI_BASE + SCI_STRIDE * 9)
+/* -----------------------------------------------------------------------
+ * SCI base address and per-channel register accessor
+ * ----------------------------------------------------------------------- */
+#define SCI_BASE    0x40118000UL
+#define SCI_STRIDE  0x100UL
 
-#define SCI0_SMR   *(volatile uint8_t*)(uintptr_t)(SCI0_BASE + 0x00)
-#define SCI0_BRR   *(volatile uint8_t*)(uintptr_t)(SCI0_BASE + 0x01)
-#define SCI0_SCR   *(volatile uint8_t*)(uintptr_t)(SCI0_BASE + 0x02)
-#define SCI0_TDR   *(volatile uint8_t*)(uintptr_t)(SCI0_BASE + 0x03)
-#define SCI0_SSR   *(volatile uint8_t*)(uintptr_t)(SCI0_BASE + 0x04)
-#define SCI0_RDR   *(volatile uint8_t*)(uintptr_t)(SCI0_BASE + 0x05)
-#define SCI0_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI0_BASE + 0x07)
+#define SCI_REG8(n, off) \
+    (*(volatile uint8_t *)(uintptr_t)(SCI_BASE + SCI_STRIDE * (uint32_t)(n) + (uint32_t)(off)))
 
-#define SCI1_SMR   *(volatile uint8_t*)(uintptr_t)(SCI1_BASE + 0x00)
-#define SCI1_BRR   *(volatile uint8_t*)(uintptr_t)(SCI1_BASE + 0x01)
-#define SCI1_SCR   *(volatile uint8_t*)(uintptr_t)(SCI1_BASE + 0x02)
-#define SCI1_TDR   *(volatile uint8_t*)(uintptr_t)(SCI1_BASE + 0x03)
-#define SCI1_SSR   *(volatile uint8_t*)(uintptr_t)(SCI1_BASE + 0x04)
-#define SCI1_RDR   *(volatile uint8_t*)(uintptr_t)(SCI1_BASE + 0x05)
-#define SCI1_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI1_BASE + 0x07)
+/* Named register accessors — use SCI_xxx(channel_number) */
+#define SCI_SMR(n)   SCI_REG8(n, 0x00U)  /* Serial Mode Register          */
+#define SCI_BRR(n)   SCI_REG8(n, 0x01U)  /* Bit Rate Register             */
+#define SCI_SCR(n)   SCI_REG8(n, 0x02U)  /* Serial Control Register       */
+#define SCI_TDR(n)   SCI_REG8(n, 0x03U)  /* Transmit Data Register        */
+#define SCI_SSR(n)   SCI_REG8(n, 0x04U)  /* Serial Status Register        */
+#define SCI_RDR(n)   SCI_REG8(n, 0x05U)  /* Receive Data Register         */
+#define SCI_SEMR(n)  SCI_REG8(n, 0x07U)  /* Serial Extended Mode Register */
 
-#define SCI2_SMR   *(volatile uint8_t*)(uintptr_t)(SCI2_BASE + 0x00)
-#define SCI2_BRR   *(volatile uint8_t*)(uintptr_t)(SCI2_BASE + 0x01)
-#define SCI2_SCR   *(volatile uint8_t*)(uintptr_t)(SCI2_BASE + 0x02)
-#define SCI2_TDR   *(volatile uint8_t*)(uintptr_t)(SCI2_BASE + 0x03)
-#define SCI2_SSR   *(volatile uint8_t*)(uintptr_t)(SCI2_BASE + 0x04)
-#define SCI2_RDR   *(volatile uint8_t*)(uintptr_t)(SCI2_BASE + 0x05)
-#define SCI2_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI2_BASE + 0x07)
+/* -----------------------------------------------------------------------
+ * SCR bits (Serial Control Register — SCI.SCR)
+ * ----------------------------------------------------------------------- */
+#define SCR_TIE  (1U << 7)   /* Transmit Interrupt Enable  */
+#define SCR_RIE  (1U << 6)   /* Receive  Interrupt Enable  */
+#define SCR_TE   (1U << 5)   /* Transmit Enable            */
+#define SCR_RE   (1U << 4)   /* Receive  Enable            */
 
-#define SCI3_SMR   *(volatile uint8_t*)(uintptr_t)(SCI3_BASE + 0x00)
-#define SCI3_BRR   *(volatile uint8_t*)(uintptr_t)(SCI3_BASE + 0x01)
-#define SCI3_SCR   *(volatile uint8_t*)(uintptr_t)(SCI3_BASE + 0x02)
-#define SCI3_TDR   *(volatile uint8_t*)(uintptr_t)(SCI3_BASE + 0x03)
-#define SCI3_SSR   *(volatile uint8_t*)(uintptr_t)(SCI3_BASE + 0x04)
-#define SCI3_RDR   *(volatile uint8_t*)(uintptr_t)(SCI3_BASE + 0x05)
-#define SCI3_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI3_BASE + 0x07)
+/* -----------------------------------------------------------------------
+ * SSR bits (Serial Status Register — SCI.SSR)
+ * RA6M5 HW manual §34: TDRE=bit7, RDRF=bit6
+ * ----------------------------------------------------------------------- */
+#define SSR_TDRE (1U << 7)   /* Transmit Data Empty (TX buffer ready) */
+#define SSR_RDRF (1U << 6)   /* Receive  Data Full  (RX byte ready)   */
+#define SSR_ORER (1U << 5)   /* Overrun Error                         */
+#define SSR_FER  (1U << 4)   /* Framing Error                         */
+#define SSR_PER  (1U << 3)   /* Parity Error                          */
 
-#define SCI4_SMR   *(volatile uint8_t*)(uintptr_t)(SCI4_BASE + 0x00)
-#define SCI4_BRR   *(volatile uint8_t*)(uintptr_t)(SCI4_BASE + 0x01)
-#define SCI4_SCR   *(volatile uint8_t*)(uintptr_t)(SCI4_BASE + 0x02)
-#define SCI4_TDR   *(volatile uint8_t*)(uintptr_t)(SCI4_BASE + 0x03)
-#define SCI4_SSR   *(volatile uint8_t*)(uintptr_t)(SCI4_BASE + 0x04)
-#define SCI4_RDR   *(volatile uint8_t*)(uintptr_t)(SCI4_BASE + 0x05)
-#define SCI4_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI4_BASE + 0x07)
+/* -----------------------------------------------------------------------
+ * SEMR bits (Serial Extended Mode Register — SCI.SEMR)
+ * RA6M5 HW manual §34 Table 34.12:
+ *   Bit 6 = BGDM  (Baud Rate Generator Double-Speed Mode)
+ *   Bit 4 = ABCS  (Asynchronous Base Clock Select: 0=16clk/bit, 1=8clk/bit)
+ * With BGDM=1 and ABCS=1: effective divider = 4  → BRR = PCLKB/(4*baud) - 1
+ * ----------------------------------------------------------------------- */
+#define SEMR_BGDM (1U << 6)
+#define SEMR_ABCS (1U << 4)
 
-#define SCI5_SMR   *(volatile uint8_t*)(uintptr_t)(SCI5_BASE + 0x00)
-#define SCI5_BRR   *(volatile uint8_t*)(uintptr_t)(SCI5_BASE + 0x01)
-#define SCI5_SCR   *(volatile uint8_t*)(uintptr_t)(SCI5_BASE + 0x02)
-#define SCI5_TDR   *(volatile uint8_t*)(uintptr_t)(SCI5_BASE + 0x03)
-#define SCI5_SSR   *(volatile uint8_t*)(uintptr_t)(SCI5_BASE + 0x04)
-#define SCI5_RDR   *(volatile uint8_t*)(uintptr_t)(SCI5_BASE + 0x05)
-#define SCI5_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI5_BASE + 0x07)
+/* -----------------------------------------------------------------------
+ * PCLKB — update this when CGC is configured (Phase 6).
+ * Default: MOCO 8 MHz, no divider applied before PCLKB.
+ * ----------------------------------------------------------------------- */
+#define PCLKB  8000000UL
 
-#define SCI6_SMR   *(volatile uint8_t*)(uintptr_t)(SCI6_BASE + 0x00)
-#define SCI6_BRR   *(volatile uint8_t*)(uintptr_t)(SCI6_BASE + 0x01)
-#define SCI6_SCR   *(volatile uint8_t*)(uintptr_t)(SCI6_BASE + 0x02)
-#define SCI6_TDR   *(volatile uint8_t*)(uintptr_t)(SCI6_BASE + 0x03)
-#define SCI6_SSR   *(volatile uint8_t*)(uintptr_t)(SCI6_BASE + 0x04)
-#define SCI6_RDR   *(volatile uint8_t*)(uintptr_t)(SCI6_BASE + 0x05)
-#define SCI6_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI6_BASE + 0x07)
+/* -----------------------------------------------------------------------
+ * UART channel enumeration
+ * Values map directly to SCI channel numbers (UART0 → SCI ch.0, etc.)
+ * ----------------------------------------------------------------------- */
+typedef enum {
+    UART0 = 0,
+    UART1 = 1,
+    UART2 = 2,
+    UART3 = 3,
+    UART4 = 4,
+    UART5 = 5,
+    UART6 = 6,
+    UART7 = 7,
+    UART8 = 8,
+    UART9 = 9
+} UART_t;
 
-#define SCI7_SMR   *(volatile uint8_t*)(uintptr_t)(SCI7_BASE + 0x00)
-#define SCI7_BRR   *(volatile uint8_t*)(uintptr_t)(SCI7_BASE + 0x01)
-#define SCI7_SCR   *(volatile uint8_t*)(uintptr_t)(SCI7_BASE + 0x02)
-#define SCI7_TDR   *(volatile uint8_t*)(uintptr_t)(SCI7_BASE + 0x03)
-#define SCI7_SSR   *(volatile uint8_t*)(uintptr_t)(SCI7_BASE + 0x04)
-#define SCI7_RDR   *(volatile uint8_t*)(uintptr_t)(SCI7_BASE + 0x05)
-#define SCI7_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI7_BASE + 0x07)
-
-#define SCI8_SMR   *(volatile uint8_t*)(uintptr_t)(SCI8_BASE + 0x00)
-#define SCI8_BRR   *(volatile uint8_t*)(uintptr_t)(SCI8_BASE + 0x01)
-#define SCI8_SCR   *(volatile uint8_t*)(uintptr_t)(SCI8_BASE + 0x02)
-#define SCI8_TDR   *(volatile uint8_t*)(uintptr_t)(SCI8_BASE + 0x03)
-#define SCI8_SSR   *(volatile uint8_t*)(uintptr_t)(SCI8_BASE + 0x04)
-#define SCI8_RDR   *(volatile uint8_t*)(uintptr_t)(SCI8_BASE + 0x05)
-#define SCI8_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI8_BASE + 0x07)
-
-#define SCI9_SMR   *(volatile uint8_t*)(uintptr_t)(SCI9_BASE + 0x00)
-#define SCI9_BRR   *(volatile uint8_t*)(uintptr_t)(SCI9_BASE + 0x01)
-#define SCI9_SCR   *(volatile uint8_t*)(uintptr_t)(SCI9_BASE + 0x02)
-#define SCI9_TDR   *(volatile uint8_t*)(uintptr_t)(SCI9_BASE + 0x03)
-#define SCI9_SSR   *(volatile uint8_t*)(uintptr_t)(SCI9_BASE + 0x04)
-#define SCI9_RDR   *(volatile uint8_t*)(uintptr_t)(SCI9_BASE + 0x05)
-#define SCI9_SEMR  *(volatile uint8_t*)(uintptr_t)(SCI9_BASE + 0x07)
-
-//CLK
+/* -----------------------------------------------------------------------
+ * Clock init (module stop release) — implemented in SCI.c
+ * ----------------------------------------------------------------------- */
 void SCI_Clock_Init(SCI_t peripheral);
 
-//UART
-typedef enum{
-    UART0,
-    UART1,
-    UART2,
-    UART3,
-    UART4,
-    UART5,
-    UART6,
-    UART7,
-    UART8,
-    UART9
-}UART_t;
+/* -----------------------------------------------------------------------
+ * UART API
+ * ----------------------------------------------------------------------- */
+void UART_PinConfig(UART_t uart);
+void UART_Init(UART_t uart, uint32_t baudrate);
+void UART_SendChar(UART_t uart, char data);
+void UART_SendString(UART_t uart, const char *str);
+char UART_ReceiveChar(UART_t uart);
 
-/* RA6M5 default boot clock: MOCO 8MHz, PCLKB = 8MHz / 4 = 2MHz (from configuration.xml) */
-#define PCLKB 2000000UL
-
-#define SEMR_ABCS (1 << 6)
-#define SEMR_BGDM (1 << 5)
-
-#define SCR_TIE  (1 << 7)
-#define SCR_RIE  (1 << 6)
-#define SCR_TE   (1 << 5)
-#define SCR_RE   (1 << 4)
-
-#define SSR_TDRE (1 << 7)
-#define SSR_RDRF (1 << 6)
-
-void UART_PinConfig(UART_t UART_);
-void UART_Init(UART_t UART_, uint32_t baudrate);
-void UART_SendChar(UART_t UART_, char data);
-void UART_SendString(UART_t UART_, const char *str);
-char UART_ReceiveChar(UART_t UART_);
-
-#endif
+#endif /* SCI_H */

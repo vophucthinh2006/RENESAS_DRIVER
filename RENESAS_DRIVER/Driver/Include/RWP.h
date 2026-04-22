@@ -1,8 +1,7 @@
 #ifndef RWP_H
 #define RWP_H
 #include <stdint.h>
-
-#define SYSC        0x4001E000UL
+#include "drv_common.h"
 
 #define PRCR        *(volatile uint16_t*)(uintptr_t)(SYSC + 0x3FE)
 

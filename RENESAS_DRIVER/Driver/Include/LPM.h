@@ -1,8 +1,7 @@
 #ifndef LPM_H
 #define LPM_H
 #include <stdint.h>
-
-#define SYSC       0x4001E000UL
+#include "drv_common.h"
 
 #define MSTPCRB    *(volatile uint32_t*)(uintptr_t)(SYSC + 0x700)
 #define MSTPCRC    *(volatile uint32_t*)(uintptr_t)(SYSC + 0x704)

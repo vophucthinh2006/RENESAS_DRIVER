@@ -4,13 +4,12 @@
  * Tests UART functions from Driver/Include/SCI.h and Driver/Source/SCI.c.
  * Board: EK-RA6M5 (R7FA6M5BH3CFC, LQFP176)
  *
- * This example sends a repeating message on UART0 at 115200 baud.
- * Connect a USB-UART adapter to the UART0 pins or use the board UART header.
+ * UART7: TX=P613, RX=P614, 115200 baud (actual ~117647, 2.1% error — within spec)
  */
 
 #include <stdint.h>
-#include "../Driver/Include/SCI.h"
-#include "../Driver/Include/GPIO.h"
+#include "SCI.h"
+#include "GPIO.h"
 
 #define LED1_PORT   GPIO_PORT0
 #define LED1_PIN    6U
@@ -27,7 +26,7 @@ static void delay_ms(uint32_t ms)
 static void led_init(void)
 {
     GPIO_Config(LED1_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUT_10M);
-    GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET); /* LED OFF */
+    GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET); /* LED OFF (active-low) */
 }
 
 static void led_blink(uint32_t count, uint32_t period_ms)
@@ -41,71 +40,66 @@ static void led_blink(uint32_t count, uint32_t period_ms)
     }
 }
 
-/* UART self-test: write to TDR and check if SSR shows ready */
+/*
+ * uart_self_test — verify UART7 TX path is functional.
+ * Uses a timeout loop so the system cannot hang indefinitely.
+ * Returns 1 = pass, 0 = fail/timeout.
+ */
 static uint8_t uart_self_test(UART_t uart)
 {
-    volatile uint8_t *TDR;
-    volatile uint8_t *SSR;
+    uint8_t n = (uint8_t)uart;
 
-    switch (uart) {
-        case UART7:
-            TDR = &SCI7_TDR;
-            SSR = &SCI7_SSR;
-            break;
-        default:
-            return 0; /* fail */
+    /* Wait for TX buffer empty with timeout */
+    uint32_t timeout = 10000U;
+    while (!(SCI_SSR(n) & SSR_TDRE) && (timeout > 0U))
+    {
+        delay_ms(1U);
+        timeout--;
+    }
+    if (timeout == 0U) { return 0U; }
+
+    /* Write test byte — hardware clears TDRE automatically on TDR write */
+    SCI_TDR(n) = (uint8_t)'T';
+
+    /* Wait for TX to complete */
+    timeout = 10000U;
+    while (!(SCI_SSR(n) & SSR_TDRE) && (timeout > 0U))
+    {
+        delay_ms(1U);
+        timeout--;
     }
 
-    /* Wait for TX buffer empty */
-    uint32_t timeout = 10000;
-    while (!(*SSR & SSR_TDRE) && timeout--) {
-        delay_ms(1);
-    }
-    if (timeout == 0) return 0; /* timeout */
-
-    /* Write test byte */
-    *TDR = 'T';
-
-    /* Clear TDRE flag */
-    *SSR &= (uint8_t)(~(uint8_t)SSR_TDRE);
-
-    /* Wait for TX buffer empty again */
-    timeout = 10000;
-    while (!(*SSR & SSR_TDRE) && timeout--) {
-        delay_ms(1);
-    }
-
-    return (timeout > 0) ? 1 : 0; /* pass/fail */
+    return (timeout > 0U) ? 1U : 0U;
 }
 
 int main(void)
 {
     led_init();
 
-    /* Test UART7 peripheral */
     UART_Init(UART7, 115200U);
 
-    /* Self-test UART */
     uint8_t uart_ok = uart_self_test(UART7);
 
-    if (uart_ok) {
-        /* UART works - blink fast */
+    if (uart_ok)
+    {
         UART_SendString(UART7, "UART7 self-test PASSED\r\n");
-        UART_SendString(UART7, "Actual baud rate: ~125000 (set terminal to 125000 8N1)\r\n");
+        UART_SendString(UART7, "Baud: 115200 requested, ~117647 actual (2.1% error)\r\n");
         UART_SendString(UART7, "Connect TX=P613, RX=P614\r\n");
-        while (1) {
+        while (1)
+        {
             UART_SendString(UART7, "RA6M5 UART7 alive\r\n");
-            led_blink(1, 500);  /* Slower blink: 500ms on, 500ms off */
-            delay_ms(500);
+            led_blink(1U, 500U);
+            delay_ms(500U);
         }
-    } else {
-        /* UART failed - blink slow */
-        while (1) {
-            led_blink(2, 500);  /* 2 blinks: 500ms on, 500ms off each */
-            delay_ms(1000);
+    }
+    else
+    {
+        while (1)
+        {
+            led_blink(2U, 500U);
+            delay_ms(1000U);
         }
     }
 
     return 0;
 }
-
