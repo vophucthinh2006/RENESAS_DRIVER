@@ -20,6 +20,7 @@
 
 #include "hal_entry.h"
 #include "GPIO.h"
+#include "utils.h"
 #include "test/test_runner.h"
 #include "test/test_cases.h"
 
@@ -28,20 +29,6 @@
  * ----------------------------------------------------------------- */
 #define LED1_PORT   GPIO_PORT0
 #define LED1_PIN    6U
-
-/* -----------------------------------------------------------------
- * delay_ms  --  busy-wait delay.
- * RA6M5 default boot clock = MOCO ~8 MHz.
- * Loop calibrated for -O0; fine-tune if using -O2 or after CGC init.
- * ----------------------------------------------------------------- */
-static void delay_ms(uint32_t ms)
-{
-    volatile uint32_t count = ms * 4000U;   /* ~8 MHz / 2 iterations per loop */
-    while (count-- != 0U)
-    {
-        __asm volatile ("nop");
-    }
-}
 
 /* -----------------------------------------------------------------
  * hal_entry  --  called from main()
@@ -57,6 +44,8 @@ void hal_entry(void)
     /* Run driver test suite */
     test_gpio_register();
     test_rwp_register();
+    test_uart_register();
+    test_i2c_register();
 
     uint32_t failures = test_run_all();
 

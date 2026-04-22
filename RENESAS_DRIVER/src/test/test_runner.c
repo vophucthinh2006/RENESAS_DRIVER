@@ -26,7 +26,9 @@ void test_record_failure(const char *file, int line, const char *expr)
     (void)line;
     (void)expr;
     s_current_failed = 1U;
-    g_test_fail_count++;
+    /* BUG-16 fix: do NOT increment g_test_fail_count here.
+     * g_test_fail_count counts failed test cases, not individual assertions.
+     * It is incremented once per test in test_run_all() when s_current_failed=1. */
 }
 
 uint32_t test_run_all(void)
@@ -41,6 +43,10 @@ uint32_t test_run_all(void)
         if (s_current_failed == 0U)
         {
             g_test_pass_count++;
+        }
+        else
+        {
+            g_test_fail_count++;   /* count once per failed test, not per assertion */
         }
     }
     return g_test_fail_count;

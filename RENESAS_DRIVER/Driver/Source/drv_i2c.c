@@ -1,7 +1,16 @@
 #include "drv_i2c.h"
 #include "drv_clk.h"
 #include "drv_rwp.h"
+#include "drv_common.h"
 #include "GPIO.h"
+
+/* -----------------------------------------------------------------------
+ * Forward declarations for internal helpers
+ * ----------------------------------------------------------------------- */
+static void i2c_clock_init(I2C_t i2c);
+static void i2c_pin_config(I2C_t i2c);
+static void i2c_bit_delay(void);
+static void i2c_bus_recover(I2C_t i2c);
 
 /* -----------------------------------------------------------------------
  * i2c_clock_init — release module stop for one RIIC channel.
@@ -38,33 +47,121 @@ static void i2c_pin_config(I2C_t i2c)
 {
     uint8_t  scl_port, scl_pin;
     uint8_t  sda_port, sda_pin;
-    const uint32_t psel = 0x07U;   /* PSEL = RIIC function */
+    const uint32_t psel = 0x07U;
 
     switch (i2c)
     {
-        case I2C0: scl_port=4; scl_pin=0;  sda_port=4; sda_pin=1;  break;
-        case I2C1: scl_port=5; scl_pin=12; sda_port=5; sda_pin=11; break;
-        case I2C2: scl_port=4; scl_pin=10; sda_port=4; sda_pin=9;  break;
+        case I2C0: scl_port=4U; scl_pin=0U;  sda_port=4U; sda_pin=1U;  break;
+        case I2C1: scl_port=5U; scl_pin=12U; sda_port=5U; sda_pin=11U; break;
+        case I2C2: scl_port=4U; scl_pin=10U; sda_port=4U; sda_pin=9U;  break;
         default: return;
     }
 
-    PWPR = 0x00U;   /* Step 1: clear B0WI  */
-    PWPR = 0x40U;   /* Step 2: set  PFSWE  */
+    PWPR = 0x00U;
+    PWPR = 0x40U;
 
-    /* SCL pin: peripheral (PMR=1), open-drain (NCODR=1), no pull (PCR=0) */
     PmnPFS(scl_port, scl_pin)  = PmnPFS_PSEL(psel);
     PmnPFS(scl_port, scl_pin) |= PmnPFS_PMR;
     PmnPFS(scl_port, scl_pin) |= PmnPFS_NCODR;
     PmnPFS(scl_port, scl_pin) &= ~PmnPFS_PCR;
 
-    /* SDA pin: peripheral (PMR=1), open-drain (NCODR=1), no pull (PCR=0) */
     PmnPFS(sda_port, sda_pin)  = PmnPFS_PSEL(psel);
     PmnPFS(sda_port, sda_pin) |= PmnPFS_PMR;
     PmnPFS(sda_port, sda_pin) |= PmnPFS_NCODR;
     PmnPFS(sda_port, sda_pin) &= ~PmnPFS_PCR;
 
-    PWPR = 0x00U;   /* Step 3: clear PFSWE */
-    PWPR = 0x80U;   /* Step 4: set  B0WI   */
+    PWPR = 0x00U;
+    PWPR = 0x80U;
+}
+
+/* -----------------------------------------------------------------------
+ * i2c_bit_delay — ~10 μs delay for bit-bang recovery sequence.
+ * 80 NOPs at 8 MHz MOCO ≈ 10 μs.
+ * ----------------------------------------------------------------------- */
+static void i2c_bit_delay(void)
+{
+    volatile uint32_t d = 80U;
+    while (d-- != 0U)
+    {
+        __asm volatile ("nop");
+    }
+}
+
+/* -----------------------------------------------------------------------
+ * i2c_bus_recover — 9-clock SCL recovery for SDA stuck-low (S-06).
+ *
+ * Implements the standard I2C bus recovery procedure (MIPI I2C spec §3.1.16):
+ *   1. Disable RIIC and switch SCL/SDA to GPIO bit-bang mode.
+ *   2. Drive SCL high; toggle SCL 9 times.
+ *   3. After each toggle, check if SDA has been released by the slave.
+ *   4. Issue a manual STOP condition (SDA low→high while SCL high).
+ *   5. Reconfigure SCL/SDA as RIIC peripheral function.
+ *   6. Perform a soft IICRST reset to flush RIIC state machine.
+ *
+ * Called from I2C_Start when BBSY remains set after DRV_TIMEOUT_TICKS.
+ * If SCL is stuck low (hardware failure), recovery will not help —
+ * the caller will still see timeout on the next attempt.
+ * ----------------------------------------------------------------------- */
+static void i2c_bus_recover(I2C_t i2c)
+{
+    uint8_t n = (uint8_t)i2c;
+    uint8_t scl_port, scl_pin, sda_port, sda_pin;
+    uint8_t k;
+
+    switch (i2c)
+    {
+        case I2C0: scl_port=4U; scl_pin=0U;  sda_port=4U; sda_pin=1U;  break;
+        case I2C1: scl_port=5U; scl_pin=12U; sda_port=5U; sda_pin=11U; break;
+        case I2C2: scl_port=4U; scl_pin=10U; sda_port=4U; sda_pin=9U;  break;
+        default: return;
+    }
+
+    /* GPIO_PORT_t enum values are ASCII digits/letters ('0'–'9','A','B').
+     * Ports 4 and 5 (only used here) map directly: '0'+4='4', '0'+5='5'. */
+    GPIO_PORT_t scl_gpio = (GPIO_PORT_t)((uint8_t)'0' + scl_port);
+    GPIO_PORT_t sda_gpio = (GPIO_PORT_t)((uint8_t)'0' + sda_port);
+
+    /* Step 1: disable RIIC */
+    ICCR1(n) = 0x00U;
+
+    /* Step 2: switch SCL to GPIO open-drain output, SDA to GPIO input */
+    GPIO_Config(scl_gpio, scl_pin, GPIO_CNF_OUT_OD, GPIO_MODE_OUTPUT);
+    GPIO_Config(sda_gpio, sda_pin, GPIO_CNF_IN_FLT,  GPIO_MODE_INPUT);
+
+    /* Step 3: drive SCL high */
+    GPIO_Write_Pin(scl_gpio, scl_pin, GPIO_PIN_SET);
+    i2c_bit_delay();
+
+    /* Step 4: toggle SCL 9 times; stop early if SDA is released */
+    for (k = 0U; k < 9U; k++)
+    {
+        GPIO_Write_Pin(scl_gpio, scl_pin, GPIO_PIN_RESET);
+        i2c_bit_delay();
+        GPIO_Write_Pin(scl_gpio, scl_pin, GPIO_PIN_SET);
+        i2c_bit_delay();
+
+        if (GPIO_Read_Pin(sda_gpio, sda_pin) != 0U)
+        {
+            break;   /* SDA released — slave let go */
+        }
+    }
+
+    /* Step 5: issue manual STOP (SDA low → high while SCL is high) */
+    GPIO_Config(sda_gpio, sda_pin, GPIO_CNF_OUT_OD, GPIO_MODE_OUTPUT);
+    GPIO_Write_Pin(sda_gpio, sda_pin, GPIO_PIN_RESET);  /* SDA low  */
+    i2c_bit_delay();
+    GPIO_Write_Pin(scl_gpio, scl_pin, GPIO_PIN_SET);    /* SCL high */
+    i2c_bit_delay();
+    GPIO_Write_Pin(sda_gpio, sda_pin, GPIO_PIN_SET);    /* SDA high → STOP */
+    i2c_bit_delay();
+
+    /* Step 6: reconfigure pins as RIIC peripheral */
+    i2c_pin_config(i2c);
+
+    /* Step 7: soft reset RIIC state machine */
+    ICCR1(n) |= ICCR1_IICRST;
+    ICCR1(n) |= ICCR1_ICE;
+    ICCR1(n) &= (uint8_t)~ICCR1_IICRST;
 }
 
 /* -----------------------------------------------------------------------
@@ -77,9 +174,7 @@ static void i2c_pin_config(I2C_t i2c)
  *   4. Configure ICBRL, ICBRH, ICMR registers
  *   5. ICCR1 &= ~IICRST       (release reset — peripheral starts)
  *
- * BRR formula (equal split between BRL and BRH):
- *   total_counts = (PCLKB / speed_hz) - 2
- *   ICBRL = ICBRH = ICBR_FIXED_BITS | (total_counts / 2)
+ * BRR: total_counts = PCLKB / speed_hz - 2; ICBRL = ICBRH = 0xE0 | (total/2)
  * ----------------------------------------------------------------------- */
 void I2C_Init(I2C_t i2c, uint8_t pclkb_mhz, I2C_SPEED_t speed)
 {
@@ -89,74 +184,104 @@ void I2C_Init(I2C_t i2c, uint8_t pclkb_mhz, I2C_SPEED_t speed)
     i2c_clock_init(i2c);
     i2c_pin_config(i2c);
 
-    uint32_t pclkb_hz   = (uint32_t)pclkb_mhz * 1000000UL;
-    uint32_t total      = (pclkb_hz / (uint32_t)speed) - 2U;
-    uint8_t  br         = (uint8_t)(total / 2U);
+    uint32_t pclkb_hz = (uint32_t)pclkb_mhz * 1000000UL;
+    uint32_t total    = (pclkb_hz / (uint32_t)speed) - 2U;
+    uint8_t  br       = (uint8_t)(total / 2U);
 
-    /* Step 1: disable */
     ICCR1(n) = 0x00U;
-
-    /* Step 2: assert reset (IICRST=1) while ICE=0 */
     ICCR1(n) |= ICCR1_IICRST;
-
-    /* Step 3: enable (ICE=1) while still in reset */
     ICCR1(n) |= ICCR1_ICE;
 
-    /* Step 4: configure bit rate and mode registers */
-    ICBRL(n) = (uint8_t)(ICBR_FIXED_BITS | br);   /* bits[7:5]=111 required */
+    ICBRL(n) = (uint8_t)(ICBR_FIXED_BITS | br);
     ICBRH(n) = (uint8_t)(ICBR_FIXED_BITS | br);
 
     ICMR1(n) = 0x00U;
     ICMR2(n) = 0x00U;
     ICMR3(n) = 0x00U;
 
-    ICFER(n) &= (uint8_t)~(1U << 0U);   /* SCLE=0: disable SCL sync circuit */
+    ICFER(n) &= (uint8_t)~(1U << 0U);
 
-    /* Step 5: release reset — peripheral starts operating */
     ICCR1(n) &= (uint8_t)~ICCR1_IICRST;
 }
 
 /* -----------------------------------------------------------------------
  * I2C_Start — generate a START condition on the I2C bus.
+ *
+ * S-05: both busy-wait loops are now timeout-protected.
+ * S-06: if BBSY is stuck on first wait, bus recovery is attempted once.
  * ----------------------------------------------------------------------- */
 void I2C_Start(I2C_t i2c)
 {
-    uint8_t n = (uint8_t)i2c;
+    uint8_t  n  = (uint8_t)i2c;
+    uint32_t to = DRV_TIMEOUT_TICKS;
     if (n > 2U) { return; }
 
-    while (ICCR2(n) & ICCR2_BBSY) {}       /* wait: bus free  (BBSY=0) */
-    ICCR2(n) |= ICCR2_ST;                   /* request START condition  */
-    while (!(ICCR2(n) & ICCR2_BBSY)) {}    /* wait: bus busy  (BBSY=1) */
+    while (ICCR2(n) & ICCR2_BBSY)
+    {
+        if (--to == 0U)
+        {
+            i2c_bus_recover(i2c);   /* S-06: attempt 9-clock SCL recovery */
+            return;
+        }
+    }
+
+    ICCR2(n) |= ICCR2_ST;
+
+    to = DRV_TIMEOUT_TICKS;
+    while (!(ICCR2(n) & ICCR2_BBSY))
+    {
+        if (--to == 0U) { return; }
+    }
 }
 
 /* -----------------------------------------------------------------------
  * I2C_Stop — generate a STOP condition on the I2C bus.
+ * S-05: both busy-wait loops are timeout-protected.
  * ----------------------------------------------------------------------- */
 void I2C_Stop(I2C_t i2c)
 {
-    uint8_t n = (uint8_t)i2c;
+    uint8_t  n  = (uint8_t)i2c;
+    uint32_t to = DRV_TIMEOUT_TICKS;
     if (n > 2U) { return; }
 
-    ICCR2(n) |= ICCR2_SP;                          /* request STOP condition      */
-    while (!(ICSR2(n) & ICSR2_STOP)) {}            /* wait: STOP flag set         */
-    ICSR2(n) &= (uint8_t)~ICSR2_STOP;              /* clear STOP flag             */
-    while (ICCR2(n) & ICCR2_BBSY) {}               /* wait: bus free (BBSY=0)     */
+    ICCR2(n) |= ICCR2_SP;
+
+    while (!(ICSR2(n) & ICSR2_STOP))
+    {
+        if (--to == 0U) { return; }
+    }
+    ICSR2(n) &= (uint8_t)~ICSR2_STOP;
+
+    to = DRV_TIMEOUT_TICKS;
+    while (ICCR2(n) & ICCR2_BBSY)
+    {
+        if (--to == 0U) { return; }
+    }
 }
 
 /* -----------------------------------------------------------------------
  * I2C_Transmit_Address — send 7-bit slave address + R/W bit.
- * Returns 1 on ACK, 0 on NACK.
+ * Returns 1 on ACK, 0 on NACK or timeout.
+ * S-05: TDRE and TEND waits are timeout-protected.
  * ----------------------------------------------------------------------- */
 uint8_t I2C_Transmit_Address(I2C_t i2c, uint8_t address, I2C_DIR_t dir)
 {
-    uint8_t n = (uint8_t)i2c;
+    uint8_t  n  = (uint8_t)i2c;
+    uint32_t to = DRV_TIMEOUT_TICKS;
     if (n > 2U) { return 0U; }
 
-    while (!(ICSR2(n) & ICSR2_TDRE)) {}
+    while (!(ICSR2(n) & ICSR2_TDRE))
+    {
+        if (--to == 0U) { return 0U; }
+    }
 
     ICDRT(n) = (uint8_t)((address << 1U) | ((uint8_t)dir & 0x01U));
 
-    while (!(ICSR2(n) & ICSR2_TEND)) {}
+    to = DRV_TIMEOUT_TICKS;
+    while (!(ICSR2(n) & ICSR2_TEND))
+    {
+        if (--to == 0U) { return 0U; }
+    }
 
     if (ICSR2(n) & ICSR2_NACKF)
     {
@@ -169,19 +294,31 @@ uint8_t I2C_Transmit_Address(I2C_t i2c, uint8_t address, I2C_DIR_t dir)
 
 /* -----------------------------------------------------------------------
  * I2C_Master_Transmit_Data — send data bytes to slave.
- * Returns 1 on success, 0 if NACK received.
+ * Returns 1 on success, 0 on NACK or timeout.
+ * S-05: TDRE and TEND waits are timeout-protected.
  * ----------------------------------------------------------------------- */
 uint8_t I2C_Master_Transmit_Data(I2C_t i2c, uint8_t *data, uint8_t length)
 {
-    uint8_t n = (uint8_t)i2c;
-    uint8_t i;
+    uint8_t  n  = (uint8_t)i2c;
+    uint8_t  i;
+    uint32_t to;
     if (n > 2U) { return 0U; }
 
     for (i = 0U; i < length; i++)
     {
-        while (!(ICSR2(n) & ICSR2_TDRE)) {}
+        to = DRV_TIMEOUT_TICKS;
+        while (!(ICSR2(n) & ICSR2_TDRE))
+        {
+            if (--to == 0U) { I2C_Stop(i2c); return 0U; }
+        }
+
         ICDRT(n) = data[i];
-        while (!(ICSR2(n) & ICSR2_TEND)) {}
+
+        to = DRV_TIMEOUT_TICKS;
+        while (!(ICSR2(n) & ICSR2_TEND))
+        {
+            if (--to == 0U) { I2C_Stop(i2c); return 0U; }
+        }
 
         if (ICSR2(n) & ICSR2_NACKF)
         {
@@ -197,38 +334,42 @@ uint8_t I2C_Master_Transmit_Data(I2C_t i2c, uint8_t *data, uint8_t length)
 /* -----------------------------------------------------------------------
  * I2C_Master_Receive_Data — receive data bytes from slave.
  *
- * ACK/NACK sequencing (RA6M5 §38.3 master receive flow):
- *   - For all bytes except the last: send ACK  (ACKBT=0)
- *   - For the last byte:             send NACK (ACKBT=1)
- *   - ACKWP must be set BEFORE writing ACKBT, then cleared after.
- * Returns 1 on success.
+ * ACK/NACK sequencing (RA6M5 §38.3 master receive):
+ *   ACKWP must be set BEFORE writing ACKBT (was reversed in original).
+ *   Last byte: NACK (ACKBT=1).  All others: ACK (ACKBT=0).
+ * S-05: RDRF wait is timeout-protected.
+ * Returns 1 on success, 0 on timeout.
  * ----------------------------------------------------------------------- */
 uint8_t I2C_Master_Receive_Data(I2C_t i2c, uint8_t *data, uint8_t length)
 {
-    uint8_t n = (uint8_t)i2c;
-    uint8_t i;
+    uint8_t  n  = (uint8_t)i2c;
+    uint8_t  i;
+    uint32_t to;
     if (n > 2U) { return 0U; }
     if (length == 0U) { return 1U; }
 
     for (i = 0U; i < length; i++)
     {
-        while (!(ICSR2(n) & ICSR2_RDRF)) {}
+        to = DRV_TIMEOUT_TICKS;
+        while (!(ICSR2(n) & ICSR2_RDRF))
+        {
+            if (--to == 0U) { I2C_Stop(i2c); return 0U; }
+        }
 
-        ICMR3(n) |= ICMR3_ACKWP;                   /* unlock ACKBT           */
+        ICMR3(n) |= ICMR3_ACKWP;
         if (i == (uint8_t)(length - 1U))
         {
-            ICMR3(n) |= ICMR3_ACKBT;               /* last byte → NACK       */
+            ICMR3(n) |= ICMR3_ACKBT;           /* last byte → NACK  */
         }
         else
         {
-            ICMR3(n) &= (uint8_t)~ICMR3_ACKBT;     /* other bytes → ACK      */
+            ICMR3(n) &= (uint8_t)~ICMR3_ACKBT; /* other bytes → ACK */
         }
-        ICMR3(n) &= (uint8_t)~ICMR3_ACKWP;         /* lock ACKBT             */
+        ICMR3(n) &= (uint8_t)~ICMR3_ACKWP;
 
-        data[i] = ICDRR(n);   /* read byte — also clears RDRF */
+        data[i] = ICDRR(n);
     }
 
     I2C_Stop(i2c);
-
     return 1U;
 }

@@ -10,18 +10,10 @@
 #include <stdint.h>
 #include "drv_uart.h"
 #include "GPIO.h"
+#include "utils.h"
 
 #define LED1_PORT   GPIO_PORT0
 #define LED1_PIN    6U
-
-static void delay_ms(uint32_t ms)
-{
-    volatile uint32_t count = ms * 4000U;   /* ~8 MHz / 2 iterations per loop */
-    while (count-- != 0U)
-    {
-        __asm volatile ("nop");
-    }
-}
 
 static void led_init(void)
 {

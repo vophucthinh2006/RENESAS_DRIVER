@@ -26,8 +26,8 @@ last_updated: 2026-04-22
 | [[PHASE_4]] | GPIO driver fix | ✅ DONE | BUG-10, BUG-11 |
 | [[PHASE_5]] | File reorganization | ✅ DONE | S-01 |
 | [[PHASE_6]] | CGC clock init | ✅ DONE | S-03 |
-| [[PHASE_7]] | Timeout protection | ⬜ TODO | S-05, S-06 |
-| [[PHASE_8]] | src/ cleanup | ⬜ TODO | BUG-13, BUG-15, BUG-16 |
+| [[PHASE_7]] | Timeout protection | ✅ DONE | S-05, S-06 |
+| [[PHASE_8]] | src/ cleanup | ✅ DONE | BUG-13, BUG-16 |
 | [[PHASE_9]] | Final validation | ⬜ TODO | — |
 
 ---
@@ -38,9 +38,9 @@ last_updated: 2026-04-22
 |----------|-------|-------|
 | CRITICAL | 5 | 5 |
 | HIGH | 4 | 4 |
-| MEDIUM | 3 | 2 |
-| LOW | 4 | 2 |
-| STRUCTURAL | 6 | 4 |
+| MEDIUM | 4 | 4 |
+| LOW | 3 | 3 |
+| STRUCTURAL | 6 | 6 |
 
 Full bug list → [[BUGS]]
 File structure map → [[FILES]]

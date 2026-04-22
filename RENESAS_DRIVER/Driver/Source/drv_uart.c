@@ -1,5 +1,6 @@
 #include "drv_uart.h"
 #include "drv_clk.h"
+#include "drv_common.h"
 #include "GPIO.h"
 
 /* -----------------------------------------------------------------------
@@ -12,7 +13,7 @@ static void uart_clock_init(uint8_t n)
 }
 
 /* -----------------------------------------------------------------------
- * UART_PinConfig — map UART channel to TX/RX port-pin pairs.
+ * uart_pin_config — map UART channel to TX/RX port-pin pairs.
  *
  * Pin mapping (EK-RA6M5 schematic + RA6M5 pin function table):
  *   UART0 : RX=P110, TX=P111  PSEL=0x04
@@ -67,11 +68,8 @@ static void uart_pin_config(UART_t uart)
 /* -----------------------------------------------------------------------
  * UART_Init — initialise one SCI channel in async UART mode.
  *
- * BRR formula with SEMR: BGDM=1 (bit6), ABCS=1 (bit4):
+ * BRR formula with SEMR: BGDM=1 (bit6), ABCS=1 (bit4) → effective /4:
  *   BRR = PCLKB / (4 × baudrate) − 1
- *
- * Example at PCLKB=8 MHz, 115200 baud:
- *   BRR = 8 000 000 / (4 × 115 200) − 1 = 16  → actual 117 647 baud (2.1% error)
  * ----------------------------------------------------------------------- */
 void UART_Init(UART_t uart, uint32_t baudrate)
 {
@@ -89,16 +87,23 @@ void UART_Init(UART_t uart, uint32_t baudrate)
 }
 
 /* -----------------------------------------------------------------------
- * UART_SendChar — blocking transmit of one byte.
- * Hardware automatically clears TDRE when TDR is written; no manual clear.
+ * UART_SendChar — blocking transmit of one byte, with timeout.
+ *
+ * S-05: timeout prevents infinite hang if TX is stuck (e.g. no pull-up on TX
+ * line). On timeout the byte is silently dropped; caller is not blocked.
+ * Hardware clears TDRE automatically on TDR write — no manual clear needed.
  * ----------------------------------------------------------------------- */
 void UART_SendChar(UART_t uart, char data)
 {
-    uint8_t n = (uint8_t)uart;
+    uint8_t  n  = (uint8_t)uart;
+    uint32_t to = DRV_TIMEOUT_TICKS;
     if (n > 9U) { return; }
 
-    while (!(SCI_SSR(n) & SSR_TDRE)) {}   /* wait: TX buffer empty */
-    SCI_TDR(n) = (uint8_t)data;           /* write byte            */
+    while (!(SCI_SSR(n) & SSR_TDRE))
+    {
+        if (--to == 0U) { return; }   /* timeout: drop byte, avoid hang */
+    }
+    SCI_TDR(n) = (uint8_t)data;
 }
 
 /* -----------------------------------------------------------------------
@@ -113,13 +118,21 @@ void UART_SendString(UART_t uart, const char *str)
 }
 
 /* -----------------------------------------------------------------------
- * UART_ReceiveChar — blocking receive of one byte.
+ * UART_ReceiveChar — blocking receive of one byte, with timeout.
+ *
+ * S-05: timeout prevents infinite hang if no data arrives.
+ * Returns 0 on timeout (not a valid character in most protocols;
+ * caller should check independently if reliable error detection is needed).
  * ----------------------------------------------------------------------- */
 char UART_ReceiveChar(UART_t uart)
 {
-    uint8_t n = (uint8_t)uart;
+    uint8_t  n  = (uint8_t)uart;
+    uint32_t to = DRV_TIMEOUT_TICKS;
     if (n > 9U) { return 0; }
 
-    while (!(SCI_SSR(n) & SSR_RDRF)) {}   /* wait: RX data ready */
+    while (!(SCI_SSR(n) & SSR_RDRF))
+    {
+        if (--to == 0U) { return 0; }   /* timeout: return 0 */
+    }
     return (char)SCI_RDR(n);
 }
