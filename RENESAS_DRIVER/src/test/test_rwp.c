@@ -1,6 +1,6 @@
 #include "test_runner.h"
 #include "test_cases.h"
-#include "RWP.h"
+#include "drv_rwp.h"
 
 /*
  * RWP (Register Write Protection) driver tests.

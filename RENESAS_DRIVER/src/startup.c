@@ -9,6 +9,7 @@
  */
 
 #include <stdint.h>
+#include "drv_clk.h"
 
 /* -----------------------------------------------------------------------
  * Stack  (linker script places .bss.g_main_stack in noinit RAM)
@@ -136,7 +137,10 @@ void Reset_Handler(void)
         (*fn)();
     }
 
-    /* 5. Call application entry */
+    /* 5. Configure system clock: explicit MOCO 8 MHz (idempotent) */
+    CLK_Init();
+
+    /* 6. Call application entry */
     main();
 
     /* Should never reach here */

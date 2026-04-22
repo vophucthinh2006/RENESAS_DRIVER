@@ -49,7 +49,7 @@ static void delay_ms(uint32_t ms)
 void hal_entry(void)
 {
     /* Configure LED1 (P006) as GPIO push-pull output */
-    GPIO_Config(LED1_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUT_10M);
+    GPIO_Config(LED1_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
 
     /* Drive LED OFF initially (active-low: HIGH = OFF) */
     GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET);

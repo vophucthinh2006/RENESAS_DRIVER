@@ -22,10 +22,10 @@ last_updated: 2026-04-22
 |-------|-------|--------|-----------|
 | [[PHASE_1]] | Header deps & SYSC conflict | ✅ DONE | BUG-01, BUG-02, S-04 |
 | [[PHASE_2]] | UART driver fix | ✅ DONE | BUG-03, BUG-04, BUG-05, BUG-09, S-02 |
-| [[PHASE_3]] | I2C driver fix | ⬜ TODO | BUG-06, BUG-07, BUG-08, BUG-12, BUG-14 |
-| [[PHASE_4]] | GPIO driver fix | ⬜ TODO | BUG-10, BUG-11 |
-| [[PHASE_5]] | File reorganization | ⬜ TODO | S-01 |
-| [[PHASE_6]] | CGC clock init | ⬜ TODO | S-03 |
+| [[PHASE_3]] | I2C driver fix | ✅ DONE | BUG-06, BUG-07, BUG-08, BUG-12, BUG-14 |
+| [[PHASE_4]] | GPIO driver fix | ✅ DONE | BUG-10, BUG-11 |
+| [[PHASE_5]] | File reorganization | ✅ DONE | S-01 |
+| [[PHASE_6]] | CGC clock init | ✅ DONE | S-03 |
 | [[PHASE_7]] | Timeout protection | ⬜ TODO | S-05, S-06 |
 | [[PHASE_8]] | src/ cleanup | ⬜ TODO | BUG-13, BUG-15, BUG-16 |
 | [[PHASE_9]] | Final validation | ⬜ TODO | — |
@@ -36,11 +36,11 @@ last_updated: 2026-04-22
 
 | Severity | Total | Fixed |
 |----------|-------|-------|
-| CRITICAL | 5 | 4 |
-| HIGH | 4 | 1 |
-| MEDIUM | 3 | 0 |
-| LOW | 4 | 1 |
-| STRUCTURAL | 6 | 2 |
+| CRITICAL | 5 | 5 |
+| HIGH | 4 | 4 |
+| MEDIUM | 3 | 2 |
+| LOW | 4 | 2 |
+| STRUCTURAL | 6 | 4 |
 
 Full bug list → [[BUGS]]
 File structure map → [[FILES]]

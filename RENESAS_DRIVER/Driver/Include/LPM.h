@@ -1,25 +1,5 @@
-#ifndef LPM_H
-#define LPM_H
-#include <stdint.h>
-#include "drv_common.h"
+/* Deprecated: merged into drv_clk.h (Phase 5 reorganization, S-01 fix) */
+#include "drv_clk.h"
 
-#define MSTPCRB    *(volatile uint32_t*)(uintptr_t)(SYSC + 0x700)
-#define MSTPCRC    *(volatile uint32_t*)(uintptr_t)(SYSC + 0x704)
-#define MSTPCRD    *(volatile uint32_t*)(uintptr_t)(SYSC + 0x708)
-
-typedef enum{
-    SCI0,
-    SCI1,
-    SCI2,
-    SCI3,
-    SCI4,
-    SCI5,
-    SCI6,
-    SCI7,
-    SCI8,
-    SCI9
-}SCI_t;
-
-void LPM_Unlock(SCI_t peripheral);
-
-#endif
+/* Backward-compatibility alias: LPM_Unlock -> CLK_ModuleStart_SCI */
+#define LPM_Unlock(p)  CLK_ModuleStart_SCI(p)

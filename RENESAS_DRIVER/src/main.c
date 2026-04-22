@@ -8,7 +8,7 @@
  */
 
 #include <stdint.h>
-#include "SCI.h"
+#include "drv_uart.h"
 #include "GPIO.h"
 
 #define LED1_PORT   GPIO_PORT0
@@ -25,7 +25,7 @@ static void delay_ms(uint32_t ms)
 
 static void led_init(void)
 {
-    GPIO_Config(LED1_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUT_10M);
+    GPIO_Config(LED1_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
     GPIO_Write_Pin(LED1_PORT, LED1_PIN, GPIO_PIN_SET); /* LED OFF (active-low) */
 }
 
