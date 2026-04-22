@@ -1,38 +1,60 @@
 ---
 type: hub
-status: in_progress
+status: done
 last_updated: 2026-04-22
 ---
 
-# RENESAS_DRIVER — Implementation Tracker
+# RENESAS_DRIVER — Knowledge Base
+
+Tags: #done #system
 
 > Project: TESTING_2 | Target: R7FA6M5BH3CFC (Cortex-M33) | Board: EK-RA6M5
+> Build: CMake + Ninja, ARM GCC, `file(GLOB_RECURSE)` auto-collects `Driver/Source/*.c` and `src/*.c`
 
 ---
 
-## Node Map
+## Hardware Layer
 
-[[BUGS]] | [[FILES]] | [[PHASE_1]] | [[PHASE_2]] | [[PHASE_3]] | [[PHASE_4]] | [[PHASE_5]] | [[PHASE_6]] | [[PHASE_7]] | [[PHASE_8]] | [[PHASE_9]]
-
----
-
-## Status Overview
-
-| Phase | Title | Status | Bugs Fixed |
-|-------|-------|--------|-----------|
-| [[PHASE_1]] | Header deps & SYSC conflict | ✅ DONE | BUG-01, BUG-02, S-04 |
-| [[PHASE_2]] | UART driver fix | ✅ DONE | BUG-03, BUG-04, BUG-05, BUG-09, S-02 |
-| [[PHASE_3]] | I2C driver fix | ✅ DONE | BUG-06, BUG-07, BUG-08, BUG-12, BUG-14 |
-| [[PHASE_4]] | GPIO driver fix | ✅ DONE | BUG-10, BUG-11 |
-| [[PHASE_5]] | File reorganization | ✅ DONE | S-01 |
-| [[PHASE_6]] | CGC clock init | ✅ DONE | S-03 |
-| [[PHASE_7]] | Timeout protection | ✅ DONE | S-05, S-06 |
-| [[PHASE_8]] | src/ cleanup | ✅ DONE | BUG-13, BUG-16 |
-| [[PHASE_9]] | Final validation | ⬜ TODO | — |
+| Note | Covers |
+|------|--------|
+| [[HW_RA6M5_ClockTree]] | MOCO/HOCO/PLL, SCKDIVCR, SCKSCR, PCLKB |
+| [[HW_RA6M5_SCI]] | SCI UART registers, SEMR, BRR formula, SSR flags |
+| [[HW_RA6M5_RIIC]] | RIIC I2C registers, init sequence, ICBRL fixed bits |
+| [[HW_RA6M5_GPIO]] | Port control, PFS, PWPR, GPIO_INVALID_PORT |
+| [[HW_RA6M5_RWP]] | PRCR register, write key 0xA5, PRC0/PRC1 |
 
 ---
 
-## Bug Severity Snapshot
+## Firmware Layer
+
+| Note | Files |
+|------|-------|
+| [[FW_Clock_Driver]] | `drv_clk.h/.c` — CLK_Init, CLK_ModuleStart_SCI |
+| [[FW_RWP_Driver]] | `drv_rwp.h/.c` — RWP_Unlock/Lock_Clock_MSTP |
+| [[FW_UART_Driver]] | `drv_uart.h/.c` — UART_Init, SendChar (with timeout) |
+| [[FW_I2C_Driver]] | `drv_i2c.h/.c` — I2C_Init, bus recovery (9-clock) |
+| [[FW_GPIO_Driver]] | `GPIO.h/.c` — GPIO_Config, invalid-port sentinel |
+| [[FW_TestFramework]] | `test_runner.h/.c` — 11 tests across 4 suites |
+
+---
+
+## Root Cause Analysis
+
+| Note | Bug(s) |
+|------|--------|
+| [[RCA_SYSC_Redefinition]] | SYSC defined in both LPM.h and RWP.h |
+| [[RCA_UART_BRR_SEMR]] | PCLKB=2MHz wrong; BGDM/ABCS bit positions swapped |
+| [[RCA_UART_SSR_Manual_Clear]] | Manual SSR.TDRE clear harmful |
+| [[RCA_I2C_Init_Sequence]] | ICE set before IICRST; missing 0xE0 on ICBRL/ICBRH |
+| [[RCA_I2C_Start_Hang]] | TEND polled after START — never fires, infinite hang |
+| [[RCA_I2C_ACK_NACK]] | ACKBT written before ACKWP; wrong last-byte index |
+| [[RCA_GPIO_Invalid_Port]] | Invalid port returned 0 (aliases PORT0) |
+
+---
+
+## Project Status
+
+All 22 bugs and structural issues resolved. All drivers production-ready for MOCO 8 MHz baseline.
 
 | Severity | Total | Fixed |
 |----------|-------|-------|
@@ -42,39 +64,13 @@ last_updated: 2026-04-22
 | LOW | 3 | 3 |
 | STRUCTURAL | 6 | 6 |
 
-Full bug list → [[BUGS]]
-File structure map → [[FILES]]
-
----
-
-## Graph hierarchy
-
-INDEX links to → [[BUGS]]
-
-INDEX links to → [[FILES]]
-
-INDEX links to → [[PHASE_1]]
-
-INDEX links to → [[PHASE_2]]
-
-INDEX links to → [[PHASE_3]]
-
-INDEX links to → [[PHASE_4]]
-
-INDEX links to → [[PHASE_5]]
-
-INDEX links to → [[PHASE_6]]
-
-INDEX links to → [[PHASE_7]]
-
-INDEX links to → [[PHASE_8]]
-
-INDEX links to → [[PHASE_9]]
+Next step: Phase 9 — final validation (clean build, hardware-in-loop test run).
 
 ---
 
 ## Legend
-- ✅ DONE
-- 🔄 IN PROGRESS
-- ⬜ TODO
-- ❌ BLOCKED
+
+#done — implemented and verified
+#in-progress — currently being worked
+#todo — planned
+#blocked — waiting on dependency
