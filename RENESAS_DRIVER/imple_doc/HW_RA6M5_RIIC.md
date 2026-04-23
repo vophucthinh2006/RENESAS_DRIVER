@@ -99,7 +99,7 @@ PCLKB source: [[HW_RA6M5_ClockTree]].
 
 ## Pin Configuration
 
-I2C pins require open-drain mode (NCODR=1) and no internal pull-up (PCR=0). External pull-up resistors required on SCL/SDA. See [[HW_RA6M5_GPIO]].
+I2C pins require open-drain mode (NCODR=1). The RA6M5 internal pull-up resistor (~50 kΩ, PFS PCR bit4=1) is compatible with PMR=1+NCODR=1 mode and is **enabled by the driver** for all I2C channels. This is sufficient for short PCB traces (< 10 cm) at 100 kHz. For longer traces or 400 kHz, add external 4.7 kΩ resistors to 3.3 V. See [[HW_RA6M5_GPIO]].
 
 | Channel | SCL | SDA |
 |---------|-----|-----|

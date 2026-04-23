@@ -41,7 +41,9 @@ static void i2c_clock_init(I2C_t i2c)
  *   I2C1: SCL=P512, SDA=P511
  *   I2C2: SCL=P410, SDA=P409
  *
- * I2C pins require NCODR=1 (open-drain) and no pull-up (PCR=0).
+ * I2C pins require NCODR=1 (open-drain) and PCR=1 (internal pull-up ~50 kΩ).
+ * The internal pull-up is sufficient for short PCB traces (< 10 cm).
+ * For long wires or fast speeds (400 kHz) add external 4.7 kΩ resistors.
  * ----------------------------------------------------------------------- */
 static void i2c_pin_config(I2C_t i2c)
 {
@@ -63,12 +65,12 @@ static void i2c_pin_config(I2C_t i2c)
     PmnPFS(scl_port, scl_pin)  = PmnPFS_PSEL(psel);
     PmnPFS(scl_port, scl_pin) |= PmnPFS_PMR;
     PmnPFS(scl_port, scl_pin) |= PmnPFS_NCODR;
-    PmnPFS(scl_port, scl_pin) &= ~PmnPFS_PCR;
+    PmnPFS(scl_port, scl_pin) |= PmnPFS_PCR;    /* enable internal pull-up */
 
     PmnPFS(sda_port, sda_pin)  = PmnPFS_PSEL(psel);
     PmnPFS(sda_port, sda_pin) |= PmnPFS_PMR;
     PmnPFS(sda_port, sda_pin) |= PmnPFS_NCODR;
-    PmnPFS(sda_port, sda_pin) &= ~PmnPFS_PCR;
+    PmnPFS(sda_port, sda_pin) |= PmnPFS_PCR;    /* enable internal pull-up */
 
     PWPR = 0x00U;
     PWPR = 0x80U;

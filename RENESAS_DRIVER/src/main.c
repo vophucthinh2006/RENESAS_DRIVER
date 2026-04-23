@@ -1,35 +1,28 @@
 /**
  * @file    main.c
- * @brief   UART Baremetal Test — EK-RA6M5 (RA6M5 / Cortex-M33)
+ * @brief   UART + AHT20 I2C Test — EK-RA6M5 (RA6M5 / Cortex-M33)
  *
- * Active: bare-metal UART transmit test via debug_print() with LED checkpoints.
- * Clock: 8 MHz MOCO, configured by CLK_Init() in startup.c.
- * UART:  SCI7 (TX=P613, RX=P614), 115200 baud (configured in rtos_config.h).
+ * Peripherals:
+ *   UART7  (SCI7)  : TX=P613, RX=P614, 115200 baud  → external USB-UART adapter
+ *   I2C1   (RIIC1) : SCL=P512, SDA=P511, 100 kHz    → AHT20 sensor (J24-10/J24-9)
  *
- * LED debug checkpoints (active-HIGH: HIGH=ON, LOW=OFF):
- *   LED1 (P006, Blue)  — blinks 10× fast: TDRE=0 (UART stuck, reflash needed)
- *                        solid ON:         TDRE=1 (UART functional, check wiring)
- *   LED2 (P007, Green) — lights after first debug_print() returns
- *   LED3 (P008, Red)   — toggles every loop iteration (heartbeat)
- *
- * Diagnostic guide:
- *   LED1 blinks 10× fast → TDRE never set after init → module stop still active
- *                           → rebuild + reflash required
- *   LED1 solid, no output  → UART is transmitting on P613, physical wiring issue
- *                           → check USB-UART adapter: adapter-RX→P613, GND→GND
- *   LED3 blinking           → main loop alive
+ * LED checkpoints (active-HIGH):
+ *   LED1 (P006) — blinks 10× fast: TDRE=0 (UART stuck, reflash)
+ *                 solid ON:         TDRE=1 (UART functional)
+ *   LED2 (P007) — lights after first successful debug_print
+ *   LED3 (P008) — toggles every loop iteration (heartbeat)
  */
 
 #include "debug_print.h"
 #include "drv_uart.h"
+#include "drv_i2c.h"
+#include "bsp_aht20.h"
 #include "GPIO.h"
 #include "rtos_config.h"
 #include <stdint.h>
 
 /* ======================================================================
- * LED pin assignments — EK-RA6M5
- *   LED1 (Blue)  = P006,  LED2 (Green) = P007,  LED3 (Red) = P008
- * Active-HIGH: drive HIGH = ON, drive LOW = OFF.
+ * LED pin assignments — EK-RA6M5 (active-HIGH)
  * ====================================================================== */
 #define LED_PORT    GPIO_PORT0
 #define LED1_PIN    6U
@@ -50,23 +43,18 @@ static inline void led3_toggle(void)
                    (cur != 0U) ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 
-/* ======================================================================
- * LED GPIO Initialisation — push-pull output, start OFF.
- * ====================================================================== */
 static void led_init(void)
 {
     GPIO_Config(LED_PORT, LED1_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
     GPIO_Config(LED_PORT, LED2_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
     GPIO_Config(LED_PORT, LED3_PIN, GPIO_CNF_OUT_PP, GPIO_MODE_OUTPUT);
-
     LED1_OFF();
     LED2_OFF();
     LED3_OFF();
 }
 
 /* ======================================================================
- * Busy-wait delay — calibrated for 8 MHz MOCO, -O0.
- * ~4000 iterations ≈ 1 ms.
+ * Busy-wait delay — 8 MHz MOCO, -O0: ~4000 iter ≈ 1 ms
  * ====================================================================== */
 static void delay_ms_bm(uint32_t ms)
 {
@@ -75,65 +63,114 @@ static void delay_ms_bm(uint32_t ms)
 }
 
 /* ======================================================================
+ * i2c_scan — probe every 7-bit address and print responding devices.
+ *
+ * Interpretation:
+ *   No devices found  → I2C bus not working (check pull-up resistors)
+ *   Device at 0x38    → AHT20 found, driver should work
+ *   Device at other   → wrong pin or different sensor variant
+ * ====================================================================== */
+static void i2c_scan(I2C_t i2c)
+{
+    uint8_t count = 0U;
+
+    debug_print("I2C scan (0x08-0x77):\r\n");
+
+    for (uint8_t addr = 0x08U; addr <= 0x77U; addr++)
+    {
+        I2C_Start(i2c);
+        uint8_t ack = I2C_Transmit_Address(i2c, addr, I2C_WRITE);
+        I2C_Stop(i2c);
+
+        if (ack)
+        {
+            debug_print("  [0x%x] ACK%s\r\n",
+                        (unsigned)addr,
+                        (addr == AHT20_I2C_ADDR) ? " <- AHT20" : "");
+            count++;
+        }
+    }
+
+    if (count == 0U)
+    {
+        debug_print("  No devices found.\r\n");
+        debug_print("  Possible causes:\r\n");
+        debug_print("  1. Missing pull-up resistors (4.7k to 3.3V on SCL+SDA)\r\n");
+        debug_print("  2. Sensor not powered (check VCC/GND)\r\n");
+        debug_print("  3. Wrong pin connections\r\n");
+    }
+
+    debug_print("\r\n");
+}
+
+/* ======================================================================
  * Application Entry Point
  * ====================================================================== */
 int main(void)
 {
-    /* --- Checkpoint 0: LED init ---------------------------------------- */
+    /* --- Checkpoint 0: LED init --------------------------------------- */
     led_init();
 
-    /* --- Checkpoint 1: UART init -------------------------------------- */
-    debug_print_init();   /* UART_Init(SCI7, 115200) */
+    /* --- Checkpoint 1: UART init + TDRE diagnostic ------------------- */
+    debug_print_init();
 
-    /*
-     * TDRE diagnostic: read SSR immediately after UART_Init.
-     *
-     *   TDRE = 1  →  SCI7 module stop cleared, shift register active.
-     *                UART is transmitting on P613.
-     *                LED1 turns solid ON.
-     *
-     *   TDRE = 0  →  SCI7 still in module stop (MSTPCRB bit24 not cleared).
-     *                All UART_SendChar calls will time-out silently.
-     *                Cause: old binary on MCU. Rebuild + reflash.
-     *                LED1 blinks 10× fast then turns solid.
-     */
+    /* TDRE check: 1=UART running, 0=module stop still active (reflash) */
     uint8_t tdre_ok = (SCI_SSR(OS_DEBUG_UART_CHANNEL) & SSR_TDRE) ? 1U : 0U;
 
     if (!tdre_ok)
     {
-        /* Blink LED1 10× fast: UART stuck — module stop active */
+        /* Blink LED1 10× fast → old binary, MSTPCRB fix not flashed */
         for (uint8_t i = 0U; i < 10U; i++)
         {
-            LED1_ON();
-            delay_ms_bm(80U);
-            LED1_OFF();
-            delay_ms_bm(80U);
+            LED1_ON();  delay_ms_bm(80U);
+            LED1_OFF(); delay_ms_bm(80U);
         }
     }
+    LED1_ON();
 
-    LED1_ON();   /* LED1 solid → UART_Init done (TDRE=1: OK, TDRE=0: stuck) */
-
-    /* --- Checkpoint 2: first transmission ----------------------------- */
-    debug_print("\r\n=== UART Baremetal Test ===\r\n");
-    debug_print("Target : RA6M5 EK-RA6M5\r\n");
-    debug_print("Clock  : 8 MHz MOCO\r\n");
-    debug_print("Channel: UART%u @ %u baud\r\n",
-                (unsigned)OS_DEBUG_UART_CHANNEL,
+    /* --- Checkpoint 2: banner ---------------------------------------- */
+    debug_print("\r\n=== RA6M5 UART + AHT20 Test ===\r\n");
+    debug_print("UART  : SCI7 P613/P614 @ %u baud\r\n",
                 (unsigned)OS_DEBUG_UART_BAUDRATE);
-    debug_print("TX pin : P6%02u\r\n", (unsigned)(13U));
-    debug_print("TDRE after init: %s\r\n", tdre_ok ? "OK (1)" : "FAIL (0) - check MSTPCRB");
-    debug_print("===========================\r\n\r\n");
-    LED2_ON();   /* LED2 solid → first debug_print() returned */
+    debug_print("I2C   : RIIC1 P512(SCL)/P511(SDA) @ 100 kHz\r\n");
+    debug_print("TDRE  : %s\r\n", tdre_ok ? "OK" : "FAIL (check MSTPCRB)");
+    debug_print("================================\r\n\r\n");
+    LED2_ON();
 
-    /* --- Checkpoint 3: main loop heartbeat ---------------------------- */
+    /* --- I2C init + bus scan ----------------------------------------- */
+    I2C_Init(I2C1, 8U, I2C_SPEED_STANDARD);
+    i2c_scan(I2C1);   /* scan before AHT20_Init to see raw bus state */
+
+    /* --- AHT20 init -------------------------------------------------- */
+    AHT20_Init(I2C1);
+
+    /* --- Main loop: read AHT20 every 2 s ----------------------------- */
     uint32_t tick = 0U;
     for (;;)
     {
-        debug_print("[%u] Hello RA6M5 P613\r\n", (unsigned)tick);
-        tick++;
+        AHT20_Data_t data;
+        AHT20_Status_t st = AHT20_Read(I2C1, &data);
 
+        if (st == AHT20_OK)
+        {
+            /* Scale to 1 decimal place without %f */
+            int32_t t10  = (int32_t)(data.temperature_c * 10.0f);
+            int32_t rh10 = (int32_t)(data.humidity_pct  * 10.0f);
+
+            debug_print("[%u] T=%d.%u C  RH=%d.%u%%\r\n",
+                        (unsigned)tick,
+                        (int)(t10 / 10), (unsigned)((uint32_t)t10  % 10U),
+                        (int)(rh10 / 10),(unsigned)((uint32_t)rh10 % 10U));
+        }
+        else
+        {
+            debug_print("[%u] AHT20 err=%u  ", (unsigned)tick, (unsigned)st);
+            debug_print("(1=NACK 2=BUSY 3=TIMEOUT)\r\n");
+        }
+
+        tick++;
         led3_toggle();
-        delay_ms_bm(500U);
+        delay_ms_bm(2000U);
     }
 
     return 0;

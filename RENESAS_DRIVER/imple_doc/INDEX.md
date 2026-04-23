@@ -9,7 +9,7 @@ last_updated: 2026-04-23
 Tags: #in-progress #system
 
 > Project: TESTING_2 | Target: R7FA6M5BH3CFC (Cortex-M33) | Board: EK-RA6M5
-> Build: CMake + Ninja, ARM GCC, `file(GLOB_RECURSE)` auto-collects `Driver/Source/*.c`, `src/*.c`, `Middleware/Kernel/**/*.c`, `Middleware/Kernel/**/*.S`
+> Build: CMake + Ninja, ARM GCC, `file(GLOB_RECURSE)` auto-collects `Driver/Source/*.c`, `src/*.c`, `BSP/**/*.c`, `Middleware/Kernel/**/*.c`, `Middleware/Kernel/**/*.S`
 
 ---
 
@@ -20,7 +20,7 @@ Tags: #in-progress #system
 | [[HW_RA6M5_ClockTree]] | MOCO/HOCO/PLL, SCKDIVCR, SCKSCR, PCLKB |
 | [[HW_RA6M5_SCI]] | SCI UART registers, SEMR, BRR formula, SSR flags |
 | [[HW_RA6M5_RIIC]] | RIIC I2C registers, init sequence, ICBRL fixed bits |
-| [[HW_RA6M5_GPIO]] | Port control, PFS, PWPR, GPIO_INVALID_PORT |
+| [[HW_RA6M5_GPIO]] | Port control, PFS, PWPR, PmnPFS_PSEL bits[28:24] |
 | [[HW_RA6M5_RWP]] | PRCR register, write key 0xA5, PRC0/PRC1 |
 
 ---
@@ -35,6 +35,14 @@ Tags: #in-progress #system
 | [[FW_I2C_Driver]] | `drv_i2c.h/.c` — I2C_Init, bus recovery (9-clock) |
 | [[FW_GPIO_Driver]] | `GPIO.h/.c` — GPIO_Config, invalid-port sentinel |
 | [[FW_TestFramework]] | `test_runner.h/.c` — 11 tests across 4 suites |
+
+---
+
+## BSP Layer
+
+| Note | Files |
+|------|-------|
+| [[BSP_AHT20]] | `BSP/AHT20/bsp_aht20.h/.c` — AHT20 temp+humidity, I2C1 (SCL=P512, SDA=P511) |
 
 ---
 
@@ -59,7 +67,7 @@ Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
 | [[RCA_SYSC_Redefinition]] | SYSC defined in both LPM.h and RWP.h |
 | [[RCA_UART_BRR_SEMR]] | PCLKB=2MHz wrong; BGDM/ABCS bit positions swapped |
 | [[RCA_UART_SSR_Manual_Clear]] | Manual SSR.TDRE clear harmful |
-| [[RCA_UART_BaremetalNoOutput]] | No UART output — MSTPCRB wrong addr (0x4001E700→0x40084004) ✅ resolved |
+| [[RCA_UART_BaremetalNoOutput]] | MSTPCRB wrong addr + PSEL bit-shift (8→24) ✅ resolved |
 | [[RCA_I2C_Init_Sequence]] | ICE set before IICRST; missing 0xE0 on ICBRL/ICBRH |
 | [[RCA_I2C_Start_Hang]] | TEND polled after START — never fires, infinite hang |
 | [[RCA_I2C_ACK_NACK]] | ACKBT written before ACKWP; wrong last-byte index |
@@ -69,11 +77,11 @@ Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
 
 ## Project Status
 
-Phase 1 (Drivers): All 22 bugs resolved. Production-ready.
+Phase 1 (Drivers): All bugs resolved. Production-ready.
 
 Phase 2 (RTOS Kernel): Full preemptive kernel with semaphores and software timers.
 
-Phase 3 (Demo): 3-task LED demo — OS_Delay, Semaphore+Timer sync, preemption.
+Phase 3 (BSP): Sensor drivers over verified I2C/UART layer.
 
 | Milestone | Status |
 |-----------|--------|
@@ -81,8 +89,9 @@ Phase 3 (Demo): 3-task LED demo — OS_Delay, Semaphore+Timer sync, preemption.
 | RTOS kernel (Phase 2) | ✅ Complete |
 | Semaphores (Phase 2b) | ✅ Complete |
 | Software Timers (Phase 2c) | ✅ Complete |
+| UART baremetal debug | ✅ Resolved — MSTPCRB addr fix + PSEL bit-shift fix |
+| AHT20 BSP (Phase 3) | ✅ Complete — [[BSP_AHT20]] |
 | Hardware-in-loop test | 🔲 Pending |
-| UART baremetal debug | 🔄 In-progress — C-01 fixed, testing C-03 (channel switch SCI7→SCI0) — [[RCA_UART_BaremetalNoOutput]] |
 
 ---
 
@@ -92,4 +101,3 @@ Phase 3 (Demo): 3-task LED demo — OS_Delay, Semaphore+Timer sync, preemption.
 #in-progress — currently being worked
 #todo — planned
 #blocked — waiting on dependency
-

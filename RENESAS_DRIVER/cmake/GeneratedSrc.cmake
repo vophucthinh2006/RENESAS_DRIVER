@@ -4,6 +4,7 @@ file(GLOB_RECURSE Source_Files
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Source/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/**/*.c
 )
 
 # RTOS Kernel sources — C implementation and Cortex-M33 assembly port
@@ -44,6 +45,7 @@ target_include_directories(${PROJECT_NAME}.elf
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Include
     ${CMAKE_CURRENT_SOURCE_DIR}/Config
     ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/AHT20
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/
 )

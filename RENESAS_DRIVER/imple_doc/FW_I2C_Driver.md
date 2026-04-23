@@ -41,7 +41,22 @@ ICCR1(n) &= ~ICCR1_IICRST; /* Step 5: release reset              */
 
 ---
 
-## Bus Recovery (S-06)
+## Pin Configuration
+
+`i2c_pin_config()` sets per channel:
+
+| PFS bit | Field | Value | Meaning |
+|---------|-------|-------|---------|
+| [28:24] | PSEL | 0x07 | RIIC peripheral function |
+| [16] | PMR | 1 | Peripheral mode |
+| [6] | NCODR | 1 | Open-drain output |
+| [4] | PCR | 1 | Internal pull-up (~50 kΩ) enabled |
+
+Internal pull-up is sufficient for short traces (< 10 cm) at 100 kHz standard mode. For 400 kHz fast mode or wire lengths > 10 cm, add external 4.7 kΩ resistors to 3.3 V.
+
+---
+
+
 
 `i2c_bus_recover()` — static, called from `I2C_Start` when BBSY is stuck after timeout:
 
