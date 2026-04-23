@@ -43,7 +43,7 @@ target_include_directories(${PROJECT_NAME}.elf
     ${CMAKE_CURRENT_SOURCE_DIR}/src/test
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Include
     ${CMAKE_CURRENT_SOURCE_DIR}/Config
-    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/include
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/
 )

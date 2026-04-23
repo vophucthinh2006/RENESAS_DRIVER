@@ -78,4 +78,33 @@
 /** Do not block — return immediately if resource unavailable. */
 #define OS_NO_WAIT                  0U
 
+/* ======================================================================
+ * Debug Output Configuration
+ * ====================================================================== */
+
+/**
+ * Master switch for debug_print().
+ * Set to 0 to eliminate all debug code from the binary (zero overhead).
+ */
+#define OS_DEBUG_ENABLE             1
+
+/**
+ * Backend selection — set exactly one to 1.
+ *
+ *   OS_DEBUG_BACKEND_UART     : bare-metal SCI UART (default, no OS required)
+ *   OS_DEBUG_BACKEND_SEMIHOST : ARM semihosting via JTAG/SWD debugger
+ *                               (requires --specs=rdimon.specs at link time)
+ */
+#define OS_DEBUG_BACKEND_UART       1
+#define OS_DEBUG_BACKEND_SEMIHOST   0
+
+/**
+ * SCI channel used for debug UART output (0–9).
+ * UART7 (SCI7): TX=P613, RX=P614 — board UART on EK-RA6M5.
+ */
+#define OS_DEBUG_UART_CHANNEL       7U
+
+/** Baud rate for the debug UART channel. */
+#define OS_DEBUG_UART_BAUDRATE      115200UL
+
 #endif /* RTOS_CONFIG_H */
