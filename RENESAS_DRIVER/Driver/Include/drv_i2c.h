@@ -72,8 +72,8 @@
 /* -----------------------------------------------------------------------
  * ICMR3 bits
  * ----------------------------------------------------------------------- */
-#define ICMR3_ACKBT (1U << 4)   /* Transmission ACK/NACK: 0=ACK, 1=NACK    */
-#define ICMR3_ACKWP (1U << 3)   /* ACKBT Write Protect (set before ACKBT)  */
+#define ICMR3_ACKWP (1U << 4)   /* ACKBT Write Protect (set before ACKBT)  */
+#define ICMR3_ACKBT (1U << 3)   /* Transmission ACK/NACK: 0=ACK, 1=NACK    */
 
 /* -----------------------------------------------------------------------
  * ICBRL/ICBRH: upper 3 bits must always be written as 1

@@ -159,7 +159,7 @@ int main(void) {
 
     tick++;
     led3_toggle();
-    delay_ms_bm(500U);
+    delay_ms_bm(100U);
   }
 
   return 0;

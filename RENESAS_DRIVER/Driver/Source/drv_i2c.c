@@ -187,17 +187,36 @@ void I2C_Init(I2C_t i2c, uint8_t pclkb_mhz, I2C_SPEED_t speed)
     i2c_pin_config(i2c);
 
     uint32_t pclkb_hz = (uint32_t)pclkb_mhz * 1000000UL;
-    uint32_t total    = (pclkb_hz / (uint32_t)speed) - 2U;
-    uint8_t  br       = (uint8_t)(total / 2U);
+    uint8_t  cks = 0U;
+    uint32_t br;
+
+    /* Calculate optimal CKS divider and BR count */
+    for (cks = 0U; cks < 8U; cks++)
+    {
+        uint32_t ref_clk = pclkb_hz / (1UL << cks);
+        uint32_t total   = (ref_clk / (uint32_t)speed);
+        
+        if (total >= 2U) {
+            br = (total - 2U) / 2U;
+            if (br <= 31U) {
+                break; /* Found a divider that fits in 5-bit ICBR */
+            }
+        }
+    }
+
+    if (cks >= 8U) {
+        cks = 7U;
+        br = 31U; /* Fallback to slowest possible */
+    }
 
     ICCR1(n) = 0x00U;
     ICCR1(n) |= ICCR1_IICRST;
     ICCR1(n) |= ICCR1_ICE;
 
+    ICMR1(n) = (uint8_t)(cks << 4U);  /* Set CKS[2:0] at bits 6:4 */
     ICBRL(n) = (uint8_t)(ICBR_FIXED_BITS | br);
     ICBRH(n) = (uint8_t)(ICBR_FIXED_BITS | br);
 
-    ICMR1(n) = 0x00U;
     ICMR2(n) = 0x00U;
     ICMR3(n) = 0x00U;
 
@@ -225,6 +244,13 @@ void I2C_Start(I2C_t i2c)
             i2c_bus_recover(i2c);   /* S-06: attempt 9-clock SCL recovery */
             break;                  /* Proceed to generate START */
         }
+    }
+
+    /* Flush any leftover received bytes to ensure clean state */
+    if (ICSR2(n) & ICSR2_RDRF)
+    {
+        volatile uint8_t flush = ICDRR(n);
+        (void)flush;
     }
 
     ICCR2(n) |= ICCR2_ST;
@@ -386,7 +412,7 @@ uint8_t I2C_Master_Receive_Data(I2C_t i2c, uint8_t *data, uint8_t length)
             if (--to == 0U) { I2C_Stop(i2c); return 0U; }
         }
 
-        /* Set ACKBT for the NEXT byte (if there is one) */
+        /* Set ACKBT for the NEXT byte or STOP for the LAST byte */
         if (i < (uint8_t)(length - 1U))
         {
             ICMR3(n) |= ICMR3_ACKWP;
@@ -394,10 +420,29 @@ uint8_t I2C_Master_Receive_Data(I2C_t i2c, uint8_t *data, uint8_t length)
             else                             { ICMR3(n) &= (uint8_t)~ICMR3_ACKBT; }
             ICMR3(n) &= (uint8_t)~ICMR3_ACKWP;
         }
+        else
+        {
+            /* BEFORE reading the last byte, we MUST set SP=1 to generate a STOP condition! */
+            ICCR2(n) |= ICCR2_SP;
+        }
 
         data[i] = ICDRR(n);
     }
 
-    I2C_Stop(i2c);
+    /* Wait for STOP condition to finish */
+    to = DRV_TIMEOUT_TICKS;
+    while (!(ICSR2(n) & ICSR2_STOP))
+    {
+        if (--to == 0U) { return 0U; }
+    }
+    ICSR2(n) &= (uint8_t)~ICSR2_STOP;
+
+    /* Wait for bus to be freed */
+    to = DRV_TIMEOUT_TICKS;
+    while (ICCR2(n) & ICCR2_BBSY)
+    {
+        if (--to == 0U) { return 0U; }
+    }
+
     return 1U;
 }
