@@ -63,7 +63,9 @@ Set SCR=0x00 before configuring. Re-enable with `SCR_TE | SCR_RE` after BRR is w
 | 6 | BGDM | Baud Rate Generator Double-Speed Mode |
 | 4 | ABCS | Asynchronous Base Clock Select (1 = 8 clocks/bit) |
 
-With BGDM=1 and ABCS=1: effective clock per bit = PCLKB / 4.
+On RA6M5, SCI uses `PCLKA` as its internal baud-generation clock.
+
+With BGDM=1 and ABCS=1: divisor coefficient = 8.
 
 **These two bits were swapped in the original driver** — see [[RCA_UART_BRR_SEMR]].
 
@@ -73,16 +75,16 @@ With BGDM=1 and ABCS=1: effective clock per bit = PCLKB / 4.
 
 With SEMR: BGDM=1 (bit 6), ABCS=1 (bit 4):
 ```
-BRR = PCLKB / (8 × baudrate) - 1
+BRR = PCLKA / (8 × baudrate) - 1
 ```
 
-Example at PCLKB = 8 MHz, 115200 baud:
+Example at PCLKA = 100 MHz, 115200 baud:
 ```
-BRR = 8 000 000 / (8 × 115 200) - 1 = 8  (with rounding)
-Actual baud = 8 000 000 / (8 × 9) = 111 111 Hz  (-3.5% error — within 5% spec)
+BRR = 100 000 000 / (8 × 115 200) - 1 = 107  (with rounding)
+Actual baud = 100 000 000 / (8 × 108) = 115 741 Hz  (+0.47% error — within 5% spec)
 ```
 
-PCLKB source: [[HW_RA6M5_ClockTree]].
+PCLKA source: [[HW_RA6M5_ClockTree]].
 
 ---
 

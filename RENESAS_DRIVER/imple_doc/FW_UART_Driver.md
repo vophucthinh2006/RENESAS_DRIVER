@@ -15,7 +15,7 @@ void UART_SendString(UART_t uart, const char *str);
 char UART_ReceiveChar(UART_t uart);
 ```
 
-All busy-wait loops protected by `DRV_TIMEOUT_TICKS` (100 000 iterations ≈ 12 ms at 8 MHz). On timeout: `SendChar` drops the byte silently; `ReceiveChar` returns 0.
+All busy-wait loops are protected by `DRV_TIMEOUT_TICKS`. On timeout: `SendChar` drops the byte silently; `ReceiveChar` returns 0.
 
 ---
 
@@ -27,8 +27,8 @@ void UART_Init(UART_t uart, uint32_t baudrate) {
     uart_pin_config(uart);     /* configure TX/RX pins via PFS */
     SCI_SCR(n)  = 0x00;        /* disable TX/RX before config */
     SCI_SMR(n)  = 0x00;        /* async, 8-bit, no parity, 1 stop */
-    SCI_SEMR(n) = SEMR_BGDM | SEMR_ABCS;   /* bit6 + bit4 → /4 divider */
-    SCI_BRR(n)  = PCLKB / (4 * baudrate) - 1;
+    SCI_SEMR(n) = SEMR_BGDM | SEMR_ABCS;   /* bit6 + bit4 → divisor coefficient 8 */
+    SCI_BRR(n)  = SCI_PCLK_HZ / (8 * baudrate) - 1;
     SCI_SCR(n)  = SCR_TE | SCR_RE;
 }
 ```
@@ -43,14 +43,14 @@ SEMR bit positions (from [[HW_RA6M5_SCI]] §34 Table 34.12):
 
 BRR formula derivation from [[HW_RA6M5_SCI]]:
 ```
-PCLKB = 8 000 000  (MOCO /1, set by CLK_Init in [[FW_Clock_Driver]])
-BRR   = PCLKB / (4 × baudrate) - 1
+SCI clock = PCLKA = 100 000 000  (PLL /2, set by CLK_Init in [[FW_Clock_Driver]])
+BRR       = SCI_PCLK_HZ / (8 × baudrate) - 1
 ```
 
 | Baudrate | BRR | Actual | Error |
 |----------|-----|--------|-------|
-| 115200 | 16 | 117 647 | 2.1% (within 5% spec) |
-| 9600 | 207 | 9 615 | 0.16% |
+| 115200 | 107 | 115 741 | 0.47% |
+| 9600 | 1301 | not representable with current fixed setup | use a different divisor mode if low baud is needed |
 
 ---
 
@@ -71,4 +71,4 @@ Full table in `drv_uart.c: uart_pin_config()`.
 `src/test/test_uart.c` (hardware integration, requires powered target):
 - `uart7_scr_te_re_set`: SCR has TE+RE after UART_Init
 - `uart7_tdre_ready`: TDRE=1 after init
-- `uart7_brr_115200`: BRR register = 16
+- `uart7_brr_115200`: BRR register = 107

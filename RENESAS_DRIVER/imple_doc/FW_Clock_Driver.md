@@ -17,21 +17,42 @@ void CLK_ModuleStart_SCI(SCI_t peripheral);
 
 ## CLK_Init
 
-Writes the reset-default clock state explicitly to guarantee a known configuration. Called from `Reset_Handler` in `startup.c` before `main()`.
+Configures the production clock tree used by the current firmware. Called from `Reset_Handler` in `startup.c` before `main()`.
 
 ```c
 void CLK_Init(void)
 {
     RWP_Unlock_Clock_MSTP();
-    SCKDIVCR = 0x00000000;    /* all dividers = /1 */
-    SCKSCR   = SCKSCR_MOCO;  /* source = MOCO 8 MHz */
+
+    FLWT = 3;                 /* flash wait states for 200 MHz */
+    SRAMWTSC = 1;             /* SRAM wait state for 200 MHz    */
+
+    MOMCR    = 0x00;          /* crystal, normal drive */
+    MOSCWTCR = 9;             /* main osc stabilization setting */
+    MOSCCR   = 0x00;          /* start MOSC */
+    while (!(OSCSF & OSCSF_MOSCSF)) { }
+
+    PLLCCR = (49U << 8) | 0x02U;  /* XTAL /3 * 25.0 = 200 MHz */
+    PLLCR  = 0x00U;               /* start PLL */
+    while (!(OSCSF & OSCSF_PLLSF)) { }
+
+    SCKDIVCR = ...;           /* ICLK=200, PCLKA=100, PCLKB=50, PCLKC=50, PCLKD=100, BCLK=100, FCLK=50 */
+    SCKSCR   = SCKSCR_PLL;
+
     RWP_Lock_Clock_MSTP();
 }
 ```
 
-Result: ICLK = PCLKB = PCLKA = BCLK = FCLK = 8 MHz. See [[HW_RA6M5_ClockTree]].
+Result:
+- ICLK  = 200 MHz
+- PCLKA = 100 MHz
+- PCLKB = 50 MHz
+- PCLKC = 50 MHz
+- PCLKD = 100 MHz
+- BCLK  = 100 MHz
+- FCLK  = 50 MHz
 
-This is idempotent — safe to call multiple times. No oscillator stabilization wait needed for MOCO (already running at reset).
+See [[HW_RA6M5_ClockTree]].
 
 ---
 
@@ -47,7 +68,7 @@ Called from `uart_clock_init()` (static, inside `drv_uart.c`) during `UART_Init`
 
 ## MSTPCR Registers
 
-Located at SYSC+0x700 (MSTPCRB), +0x704 (MSTPCRC), +0x708 (MSTPCRD). Hardware detail: [[HW_RA6M5_ClockTree]] §9.3.3.
+Located at `0x40084000` base (MSTPCRA/B/C/D). Hardware detail: [[HW_RA6M5_ClockTree]] §9.3.3.
 
 RIIC module stop is also released here (MSTPCRB bits 9/8/7), by `i2c_clock_init()` (static, inside `drv_i2c.c`).
 

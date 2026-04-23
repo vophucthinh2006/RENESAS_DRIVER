@@ -58,7 +58,7 @@ AHT20_Status_t AHT20_Read(I2C_t i2c, AHT20_Data_t *out);
 
 ```c
 /* One-time init (call after I2C_Init, ≥100 ms after power-on) */
-I2C_Init(I2C1, 8U, I2C_SPEED_STANDARD);
+I2C_Init(I2C1, 50U, I2C_SPEED_STANDARD);
 AHT20_Init(I2C1);
 
 /* Read in main loop */
@@ -83,6 +83,10 @@ if (AHT20_Read(I2C1, &data) == AHT20_OK) {
 1. Send trigger: `0xAC 0x33 0x00`
 2. Wait ≥ 80 ms
 3. Read 6 bytes
+
+Current implementation detail:
+- `AHT20_Init()` still uses a pre-RTOS busy-wait because it is called before `OS_Start()`.
+- `AHT20_Read()` uses `OS_Task_Delay()` once the scheduler is running, so the 80 ms conversion wait tracks the kernel tick instead of CPU-bound loop calibration.
 
 ### Data Frame (6 bytes)
 

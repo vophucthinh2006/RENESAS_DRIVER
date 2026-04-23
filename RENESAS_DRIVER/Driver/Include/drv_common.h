@@ -17,10 +17,11 @@
 /* -----------------------------------------------------------------------
  * Timeout protection (S-05)
  * DRV_TIMEOUT_TICKS: iteration count for busy-wait loops.
- * At 8 MHz MOCO with -O0: ~1 tick ≈ 125 ns → 1000000 ticks ≈ 125 ms.
+ * At 200 MHz ICLK with -O0: 25000000 ticks remains in the same order of
+ * magnitude as the previous ~125 ms protection window used at 8 MHz.
  * All drivers use a countdown from this value; zero = timeout error.
  * ----------------------------------------------------------------------- */
-#define DRV_TIMEOUT_TICKS  1000000UL
+#define DRV_TIMEOUT_TICKS  25000000UL
 
 /* -----------------------------------------------------------------------
  * Driver status codes — returned by timeout-aware driver functions.

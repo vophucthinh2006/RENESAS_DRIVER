@@ -14,6 +14,9 @@
  *   debug_print_init();                       // call once before use
  *   debug_print("val=%d, str=%s\r\n", 42, "ok");
  *
+ * UART backend prefixes each message with "[<tick> ms] ".
+ * Before the kernel starts, the tick value remains 0.
+ *
  * Supported format specifiers: %s %d %u %x %X %c %%
  */
 

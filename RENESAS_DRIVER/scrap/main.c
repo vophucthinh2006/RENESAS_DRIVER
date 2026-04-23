@@ -59,7 +59,7 @@ static void led_toggle(uint8_t pin)
 
 static void delay_ms_bm(uint32_t ms)
 {
-  volatile uint32_t n = ms * 4000U;
+  volatile uint32_t n = ms * 100000U;
   while (n-- != 0U) {
     __asm volatile("nop");
   }
@@ -187,7 +187,7 @@ int main(void)
   debug_print("I2C   : RIIC1 P512(SCL)/P511(SDA) @ 100 kHz\r\n");
   debug_print("TDRE  : %s\r\n", tdre_ok != 0U ? "OK" : "FAIL (check MSTPCRB)");
 
-  I2C_Init(I2C1, 8U, I2C_SPEED_STANDARD);
+  I2C_Init(I2C1, 50U, I2C_SPEED_STANDARD);
   i2c_scan(I2C1);
   delay_ms_bm(120U);
   AHT20_Init(I2C1);

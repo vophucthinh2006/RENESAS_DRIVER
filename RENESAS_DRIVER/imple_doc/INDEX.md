@@ -17,7 +17,7 @@ Tags: #in-progress #system
 
 | Note | Covers |
 |------|--------|
-| [[HW_RA6M5_ClockTree]] | MOCO/HOCO/PLL, SCKDIVCR, SCKSCR, PCLKB |
+| [[HW_RA6M5_ClockTree]] | XTAL/HOCO/MOCO/PLL, SCKDIVCR, SCKSCR, PCLKA/PCLKB |
 | [[HW_RA6M5_SCI]] | SCI UART registers, SEMR, BRR formula, SSR flags |
 | [[HW_RA6M5_RIIC]] | RIIC I2C registers, init sequence, ICBRL fixed bits |
 | [[HW_RA6M5_GPIO]] | Port control, PFS, PWPR, PmnPFS_PSEL bits[28:24] |
@@ -51,7 +51,7 @@ Tags: #in-progress #system
 | Note | Covers |
 |------|--------|
 | [[FW_Scheduler_Core]] | TCB, Priority Bitmap (O(1) via `__CLZ`), Ready List, Task_Delay, Round-Robin |
-| [[FW_Port_RA6M5]] | SysTick config (8 MHz, RVR=7999), NVIC SHPR3, Stack Frame init, EXC_RETURN |
+| [[FW_Port_RA6M5]] | SysTick config (200 MHz, RVR=199999), NVIC SHPR3, Stack Frame init, EXC_RETURN |
 | [[FW_Context_Switch]] | PendSV assembly, FPU S16-S31 lazy save/restore, SVC first-task launch |
 | [[FW_Semaphore]] | Counting/Binary semaphores, priority-ordered wake, timeout support |
 | [[FW_Software_Timer]] | One-shot/Auto-reload timers, Timer Daemon Task, ISR-minimal callbacks |

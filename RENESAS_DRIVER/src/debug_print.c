@@ -16,6 +16,7 @@
 #if OS_DEBUG_ENABLE && !OS_DEBUG_BACKEND_SEMIHOST
 
 #include "drv_uart.h"
+#include "kernel.h"
 #include <stdarg.h>
 #include <stdint.h>
 
@@ -67,6 +68,13 @@ static void dbg_putu(uint32_t val, uint8_t base, uint8_t upper)
     while (i > 0U) { dbg_putc(buf[--i]); }
 }
 
+static void dbg_put_timestamp(void)
+{
+    dbg_putc('[');
+    dbg_putu(OS_GetTick(), 10U, 0U);
+    dbg_puts(" ms] ");
+}
+
 /* -------------------------------------------------------------------------
  * Public API
  * ------------------------------------------------------------------------- */
@@ -96,6 +104,8 @@ void debug_print(const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
+
+    dbg_put_timestamp();
 
     for (const char *p = fmt; *p != '\0'; p++)
     {

@@ -15,7 +15,7 @@ The kernel implements **priority-based preemptive scheduling** with **Round-Robi
 | Max tasks | 32 |
 | Priority levels | 32 (0 = highest, 31 = lowest) |
 | Stack per task | 4096 bytes (1024 words) |
-| Tick rate | 1 ms (SysTick at 8 MHz ICLK) |
+| Tick rate | 1 ms (SysTick at 200 MHz ICLK) |
 
 ---
 
@@ -122,5 +122,5 @@ In `SysTick_Handler` (every 1 ms):
 - [[FW_Context_Switch]] — PendSV assembly, FPU context, register save/restore
 - [[FW_Semaphore]] — Counting/binary semaphores with timeout
 - [[FW_Software_Timer]] — One-shot/auto-reload timers, daemon task
-- [[HW_RA6M5_ClockTree]] — ICLK 8 MHz MOCO baseline
+- [[HW_RA6M5_ClockTree]] — ICLK 200 MHz PLL clock tree
 

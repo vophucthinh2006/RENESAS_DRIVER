@@ -10,7 +10,7 @@
  * S-01 fix: LPM.h was misnamed — it contained MSTPCR, not LPM logic.
  *
  * Default clock after reset: MOCO 8 MHz, all dividers = /1.
- * CLK_Init() makes this state explicit (idempotent, safe to call early).
+ * CLK_Init() switches to the configured production clock tree.
  */
 
 /* -----------------------------------------------------------------------
@@ -21,10 +21,19 @@
 #define SCKSCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x026U))  /* System Clock Source Control     */
 #define PLLCCR      (*(volatile uint16_t *)(uintptr_t)(SYSC + 0x028U))  /* PLL Clock Control               */
 #define PLLCR       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x02AU))  /* PLL Control                     */
-#define PLLSR       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x02CU))  /* PLL Status                      */
+#define MOSCCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x032U))  /* Main Clock Oscillator Control   */
 #define HOCOCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x036U))  /* HOCO Control                    */
 #define MOCOCR      (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x038U))  /* MOCO Control                    */
 #define OSCSF       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x03CU))  /* Oscillation Stabilization Flag  */
+#define MOSCWTCR    (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x0A2U))  /* Main Osc Wait Control           */
+#define MOMCR       (*(volatile uint8_t  *)(uintptr_t)(SYSC + 0x413U))  /* Main Osc Mode Control           */
+
+#define FCACHE_BASE 0x4001C000UL
+#define SRAM_BASE   0x40002000UL
+
+#define FLWT        (*(volatile uint8_t  *)(uintptr_t)(FCACHE_BASE + 0x11CU)) /* Flash Wait Cycle Register */
+#define SRAMPRCR    (*(volatile uint8_t  *)(uintptr_t)(SRAM_BASE + 0x004U))   /* SRAM Protection Register  */
+#define SRAMWTSC    (*(volatile uint8_t  *)(uintptr_t)(SRAM_BASE + 0x008U))   /* SRAM Wait State Control   */
 
 /* SCKSCR.CKSEL[2:0] clock source values */
 #define SCKSCR_HOCO  0x00U   /* HOCO (up to 64 MHz) */
@@ -44,11 +53,35 @@
 
 /* SCKDIVCR field bit positions */
 #define SCKDIVCR_PCKDPOS   0U    /* PCLKD [2:0] */
+#define SCKDIVCR_PCKCPOS   4U    /* PCLKC [6:4] */
 #define SCKDIVCR_PCKBPOS   8U    /* PCLKB [10:8] */
 #define SCKDIVCR_PCKAPOS  12U    /* PCLKA [14:12] */
 #define SCKDIVCR_BCKPOS   16U    /* BCLK  [18:16] */
 #define SCKDIVCR_ICKPOS   24U    /* ICLK  [26:24] */
 #define SCKDIVCR_FCKPOS   28U    /* FCLK  [30:28] */
+
+#define PLLCR_PLLSTP      (1U << 0)
+
+#define MOSCCR_MOSTP      (1U << 0)
+
+#define OSCSF_HOCOSF      (1U << 0)
+#define OSCSF_MOSCSF      (1U << 3)
+#define OSCSF_PLLSF       (1U << 5)
+
+#define MOSCWTCR_MSTS_9   0x09U
+
+#define FLWT_3_WAIT       0x03U
+
+#define SRAMPRCR_KEY_UNLOCK  0xF1U
+#define SRAMPRCR_KEY_LOCK    0xF0U
+#define SRAMWTSC_WAIT_1      0x01U
+
+#define PLLCCR_PLLMUL_POS    8U
+#define PLLCCR_PLSRCSEL_POS  4U
+
+#define PLL_SOURCE_MOSC      0U
+#define PLL_DIV_3            0x02U
+#define PLL_MUL_X25          49U
 
 /* -----------------------------------------------------------------------
  * Module Stop Control registers  (RA6M5 HW Manual §10.2.4–10.2.7)
@@ -85,9 +118,10 @@ typedef enum {
  * ----------------------------------------------------------------------- */
 
 /*
- * CLK_Init — explicit MOCO 8 MHz clock configuration.
+ * CLK_Init — production clock configuration.
  * Call once from Reset_Handler before main().
- * Sets SCKDIVCR (all /1) and SCKSCR (MOCO) to known-good state.
+ * Configures XTAL 24 MHz -> PLL 200 MHz, with RA6M5-required
+ * flash and SRAM wait states, then applies the target dividers.
  * Requires RWP unlock (handled internally).
  */
 void CLK_Init(void);

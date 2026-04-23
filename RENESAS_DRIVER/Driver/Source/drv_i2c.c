@@ -78,11 +78,11 @@ static void i2c_pin_config(I2C_t i2c)
 
 /* -----------------------------------------------------------------------
  * i2c_bit_delay — ~10 μs delay for bit-bang recovery sequence.
- * 80 NOPs at 8 MHz MOCO ≈ 10 μs.
+ * 2000 NOPs at 200 MHz ICLK ≈ 10 μs.
  * ----------------------------------------------------------------------- */
 static void i2c_bit_delay(void)
 {
-    volatile uint32_t d = 80U;
+    volatile uint32_t d = 2000U;
     while (d-- != 0U)
     {
         __asm volatile ("nop");

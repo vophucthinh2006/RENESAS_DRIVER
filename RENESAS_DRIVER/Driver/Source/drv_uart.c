@@ -68,8 +68,8 @@ static void uart_pin_config(UART_t uart)
 /* -----------------------------------------------------------------------
  * UART_Init — initialise one SCI channel in async UART mode.
  *
- * BRR formula with SEMR: BGDM=1 (bit6), ABCS=1 (bit4) → effective /4:
- *   BRR = PCLKB / (4 × baudrate) − 1
+ * BRR formula with SEMR: BGDM=1 (bit6), ABCS=1 (bit4) → divisor coefficient 8:
+ *   BRR = SCI_PCLK_HZ / (8 × baudrate) − 1
  * ----------------------------------------------------------------------- */
 void UART_Init(UART_t uart, uint32_t baudrate)
 {
@@ -84,11 +84,11 @@ void UART_Init(UART_t uart, uint32_t baudrate)
     SCI_SEMR(n) = (uint8_t)(SEMR_BGDM | SEMR_ABCS);            /* BGDM=1(b6), ABCS=1(b4) → /8    */
     
     uint32_t divisor = 8UL * baudrate;
-    SCI_BRR(n)  = (uint8_t)((PCLKB + (divisor / 2U)) / divisor - 1U);
+    SCI_BRR(n)  = (uint8_t)((SCI_PCLK_HZ + (divisor / 2U)) / divisor - 1U);
 
     /* BRR settling wait — RA6M5 §30.2.20: BRR must be written with TE=RE=0,
      * and the baud rate generator needs at least 1 bit period to settle before
-     * the first transmission.  At 8 MHz / 115200 baud: 1 bit ≈ 69 cycles.
+     * the first transmission.  At 100 MHz / 115200 baud: 1 bit ≈ 868 cycles.
      * 1000 NOPs is conservative and covers all supported baud rates.        */
     for (volatile uint32_t brr_wait = 0U; brr_wait < 1000U; brr_wait++)
     {

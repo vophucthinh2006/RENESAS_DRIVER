@@ -2,41 +2,67 @@
 #include "drv_rwp.h"
 
 /* -----------------------------------------------------------------------
- * CLK_Init — explicit MOCO 8 MHz system clock configuration.
+ * CLK_Init — bring the current project to its configured 200 MHz state.
  *
- * RA6M5 resets with MOCO selected (SCKSCR=0x01) and all clock dividers
- * at /1 (SCKDIVCR=0x00000000). This function makes that state explicit
- * and is safe to call as the very first action in Reset_Handler.
+ * Source of truth:
+ *   configuration.xml
+ *   - XTAL   = 24 MHz crystal
+ *   - PLL    = XTAL / 3 * 25.0 = 200 MHz
+ *   - ICLK   = 200 MHz
+ *   - PCLKA  = 100 MHz
+ *   - PCLKB  =  50 MHz
+ *   - PCLKC  =  50 MHz
+ *   - PCLKD  = 100 MHz
+ *   - BCLK   = 100 MHz
+ *   - FCLK   =  50 MHz
  *
- * Clock tree after CLK_Init (Phase 6 — MOCO 8 MHz baseline):
- *   Source : MOCO (8 MHz)
- *   ICLK   : 8 MHz  (ICK  = /1)
- *   PCLKB  : 8 MHz  (PCKB = /1)  ← matches PCLKB in drv_uart.h
- *   PCLKA  : 8 MHz  (PCKA = /1)
- *   BCLK   : 8 MHz  (BCK  = /1)
- *   FCLK   : 8 MHz  (FCK  = /1)
- *
- * To switch to HOCO 64 MHz later:
- *   1. MOCOCR.MCSTP = 1  (stop MOCO — optional)
- *   2. HOCOCR.HCSTP = 0  (start HOCO)
- *   3. Wait OSCSF.HOCOSF = 1  (stable)
- *   4. Set SCKDIVCR as required
- *   5. SCKSCR = SCKSCR_HOCO
+ * The RA6M5 requires flash and SRAM wait states before raising ICLK.
+ * Those settings are mirrored from the FSP-generated reference project.
  * ----------------------------------------------------------------------- */
 void CLK_Init(void)
 {
     RWP_Unlock_Clock_MSTP();
 
-    /* All system clock dividers = /1 (explicit, matches reset default) */
-    SCKDIVCR = ((uint32_t)SCKDIV_1 << SCKDIVCR_ICKPOS)   /* ICLK  = /1 */
-             | ((uint32_t)SCKDIV_1 << SCKDIVCR_PCKBPOS)   /* PCLKB = /1 */
-             | ((uint32_t)SCKDIV_1 << SCKDIVCR_PCKAPOS)   /* PCLKA = /1 */
-             | ((uint32_t)SCKDIV_1 << SCKDIVCR_PCKDPOS)   /* PCLKD = /1 */
-             | ((uint32_t)SCKDIV_1 << SCKDIVCR_BCKPOS)    /* BCLK  = /1 */
-             | ((uint32_t)SCKDIV_1 << SCKDIVCR_FCKPOS);   /* FCLK  = /1 */
+    /* 200 MHz on RA6M5 requires flash wait states before the switch. */
+    FLWT = FLWT_3_WAIT;
 
-    /* Select MOCO (8 MHz) as system clock source */
-    SCKSCR = SCKSCR_MOCO;
+    /* 200 MHz also requires SRAM wait states.  Unlock, update, relock. */
+    __asm volatile ("dmb" ::: "memory");
+    SRAMPRCR = SRAMPRCR_KEY_UNLOCK;
+    __asm volatile ("dmb" ::: "memory");
+    SRAMWTSC = SRAMWTSC_WAIT_1;
+    __asm volatile ("dmb" ::: "memory");
+    SRAMPRCR = SRAMPRCR_KEY_LOCK;
+    __asm volatile ("dmb" ::: "memory");
+
+    /* Configure main oscillator for a 24 MHz crystal and wait for stable MOSC. */
+    MOMCR = 0x00U;
+    MOSCWTCR = MOSCWTCR_MSTS_9;
+    MOSCCR &= (uint8_t)~MOSCCR_MOSTP;
+    while ((OSCSF & OSCSF_MOSCSF) == 0U)
+    {
+        __asm volatile ("nop");
+    }
+
+    /* XTAL / 3 * 25.0 = 200 MHz, per configuration.xml and RA6M5 PLL type 1 encoding. */
+    PLLCCR = (uint16_t)(((uint16_t)PLL_MUL_X25 << PLLCCR_PLLMUL_POS)
+           | ((uint16_t)PLL_SOURCE_MOSC << PLLCCR_PLSRCSEL_POS)
+           | (uint16_t)PLL_DIV_3);
+    PLLCR &= (uint8_t)~PLLCR_PLLSTP;
+    while ((OSCSF & OSCSF_PLLSF) == 0U)
+    {
+        __asm volatile ("nop");
+    }
+
+    SCKDIVCR = ((uint32_t)SCKDIV_1 << SCKDIVCR_ICKPOS)   /* ICLK  = 200 MHz */
+             | ((uint32_t)SCKDIV_2 << SCKDIVCR_PCKAPOS)  /* PCLKA = 100 MHz */
+             | ((uint32_t)SCKDIV_4 << SCKDIVCR_PCKBPOS)  /* PCLKB =  50 MHz */
+             | ((uint32_t)SCKDIV_4 << SCKDIVCR_PCKCPOS)  /* PCLKC =  50 MHz */
+             | ((uint32_t)SCKDIV_2 << SCKDIVCR_PCKDPOS)  /* PCLKD = 100 MHz */
+             | ((uint32_t)SCKDIV_2 << SCKDIVCR_BCKPOS)   /* BCLK  = 100 MHz */
+             | ((uint32_t)SCKDIV_4 << SCKDIVCR_FCKPOS);  /* FCLK  =  50 MHz */
+
+    SCKSCR = SCKSCR_PLL;
 
     RWP_Lock_Clock_MSTP();
 }

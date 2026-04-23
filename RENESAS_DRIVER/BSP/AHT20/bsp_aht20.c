@@ -23,6 +23,7 @@
  */
 
 #include "bsp_aht20.h"
+#include "kernel.h"
 #include <stdint.h>
 
 /* -----------------------------------------------------------------------
@@ -36,12 +37,21 @@
 #define AHT20_STATUS_CAL_BIT     (1U << 3U)   /* 1 = calibrated OK   */
 
 /* -----------------------------------------------------------------------
- * aht20_delay_ms — busy-wait delay.
- * Calibrated for 8 MHz MOCO at -O0: ~4000 iterations ≈ 1 ms.
+ * aht20_delay_ms — hybrid delay helper.
+ *
+ * Before the RTOS starts, use a local busy-wait for power-on/init delays.
+ * Once a task is running, use OS_Task_Delay() so sensor conversions do not
+ * burn CPU time or stretch the observed task period by the busy-wait cost.
  * ----------------------------------------------------------------------- */
 static void aht20_delay_ms(uint32_t ms)
 {
-    volatile uint32_t n = ms * 4000U;
+    if ((os_current_task != (OS_TCB_t *)0) && (ms != 0U))
+    {
+        OS_Task_Delay(ms);
+        return;
+    }
+
+    volatile uint32_t n = ms * 100000U;
     while (n-- != 0U)
     {
         __asm volatile("nop");

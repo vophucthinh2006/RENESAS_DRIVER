@@ -5,7 +5,7 @@
  * O(1) bitmap scheduler, per-priority round-robin, tick-based blocking,
  * semaphore timeout integration, and software timer tick dispatch.
  *
- * Target: RA6M5 (Cortex-M33), ICLK = 8 MHz, 1 ms tick.
+ * Target: RA6M5 (Cortex-M33), ICLK = 200 MHz, 1 ms tick.
  */
 
 #include "kernel.h"
@@ -222,7 +222,7 @@ void OS_Start(void)
      * Context switches never preempt application ISRs. */
     SCB_SHPR3 = 0xFFFF0000UL;
 
-    /* SysTick: 1 ms at 8 MHz.  RVR=7999, processor clock, enable. */
+    /* SysTick: 1 ms at 200 MHz.  RVR=199999, processor clock, enable. */
     SYST_RVR = OS_SYSTICK_RELOAD;
     SYST_CVR = 0U;
     SYST_CSR = SYST_CSR_ENABLE | SYST_CSR_TICKINT | SYST_CSR_CLKSOURCE;

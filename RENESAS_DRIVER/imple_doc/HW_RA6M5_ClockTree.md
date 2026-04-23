@@ -43,8 +43,8 @@ Write requires PRCR unlock (PRC0=1). See [[HW_RA6M5_RWP]].
 | Field | Bits | Clock Domain |
 |-------|------|-------------|
 | PCKD | [2:0] | PCLKD |
-| PCKB | [10:8] | PCLKB (used by SCI, RIIC) |
-| PCKA | [14:12] | PCLKA |
+| PCKB | [10:8] | PCLKB (used by RIIC and many peripherals) |
+| PCKA | [14:12] | PCLKA (used by SCI on RA6M5) |
 | BCK | [18:16] | BCLK |
 | ICK | [26:24] | ICLK (CPU) |
 | FCK | [30:28] | FCLK (Flash) |
@@ -55,18 +55,21 @@ Reset default: `0x00000000` (all /1). Write requires PRCR unlock.
 
 ---
 
-## Reset-Default Clock Tree (Phase 6 baseline)
+## Current Firmware Clock Tree
 
 ```
-MOCO (8 MHz)
-  └─ ICLK  = 8 MHz  (/1)
-  └─ PCLKB = 8 MHz  (/1)  ← used by SCI BRR and RIIC BRR
-  └─ PCLKA = 8 MHz  (/1)
-  └─ BCLK  = 8 MHz  (/1)
-  └─ FCLK  = 8 MHz  (/1)
+XTAL (24 MHz)
+  └─ PLL = XTAL / 3 * 25.0 = 200 MHz
+      └─ ICLK  = 200 MHz (/1)
+      └─ PCLKA = 100 MHz (/2)  ← used by SCI
+      └─ PCLKB =  50 MHz (/4)  ← used by RIIC
+      └─ PCLKC =  50 MHz (/4)
+      └─ PCLKD = 100 MHz (/2)
+      └─ BCLK  = 100 MHz (/2)
+      └─ FCLK  =  50 MHz (/4)
 ```
 
-`CLK_Init()` in [[FW_Clock_Driver]] writes this state explicitly (idempotent).
+`CLK_Init()` in [[FW_Clock_Driver]] writes this state explicitly during reset.
 
 ---
 
@@ -74,7 +77,10 @@ MOCO (8 MHz)
 
 OSCSF register (SYSC+0x03C):
 - Bit 0 = HOCOSF: HOCO stable flag. Wait for 1 before switching to HOCO.
-- Not required for MOCO (stable immediately after reset).
+- Bit 3 = MOSCSF: main oscillator stable flag.
+- Bit 5 = PLLSF: PLL stable flag.
+
+Current firmware waits for both `MOSCSF` and `PLLSF` before switching `SCKSCR` to PLL.
 
 ---
 
