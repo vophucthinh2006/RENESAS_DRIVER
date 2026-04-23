@@ -51,13 +51,24 @@
 #define SCKDIVCR_FCKPOS   28U    /* FCLK  [30:28] */
 
 /* -----------------------------------------------------------------------
- * Module Stop Control registers  (RA6M5 HW Manual §9.3.3)
+ * Module Stop Control registers  (RA6M5 HW Manual §10.2.4–10.2.7)
+ *
+ * MSTP block base: 0x4008_4000  (separate from SYSC — verified p.220)
+ *   MSTPCRA offset 0x000  MSTPCRB offset 0x004
+ *   MSTPCRC offset 0x008  MSTPCRD offset 0x00C
+ *
  * bit=1: module clock stopped (reset default)
  * bit=0: module clock running  ← clear bit to enable
+ *
+ * NOTE: prior code used SYSC+0x700 = 0x4001E700 which is WRONG.
+ *       That address is outside the MSTP block and writes were silently
+ *       discarded → SCI7 never released from module stop → TDRE stuck at 0.
  * ----------------------------------------------------------------------- */
-#define MSTPCRB     (*(volatile uint32_t *)(uintptr_t)(SYSC + 0x700U))
-#define MSTPCRC     (*(volatile uint32_t *)(uintptr_t)(SYSC + 0x704U))
-#define MSTPCRD     (*(volatile uint32_t *)(uintptr_t)(SYSC + 0x708U))
+#define MSTP_BASE   0x40084000UL
+#define MSTPCRA     (*(volatile uint32_t *)(uintptr_t)(MSTP_BASE + 0x000U))
+#define MSTPCRB     (*(volatile uint32_t *)(uintptr_t)(MSTP_BASE + 0x004U))
+#define MSTPCRC     (*(volatile uint32_t *)(uintptr_t)(MSTP_BASE + 0x008U))
+#define MSTPCRD     (*(volatile uint32_t *)(uintptr_t)(MSTP_BASE + 0x00CU))
 
 /* -----------------------------------------------------------------------
  * SCI channel enumeration

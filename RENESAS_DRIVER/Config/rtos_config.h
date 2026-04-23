@@ -99,8 +99,8 @@
 #define OS_DEBUG_BACKEND_SEMIHOST   0
 
 /**
- * SCI channel used for debug UART output (0–9).
- * UART7 (SCI7): TX=P613, RX=P614 — board UART on EK-RA6M5.
+ * SCI channel used for UART output (0–9).
+ * UART7 (SCI7): TX=P613, RX=P614, PSEL=0x05 — connect external USB-UART adapter.
  */
 #define OS_DEBUG_UART_CHANNEL       7U
 

@@ -59,6 +59,7 @@ Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
 | [[RCA_SYSC_Redefinition]] | SYSC defined in both LPM.h and RWP.h |
 | [[RCA_UART_BRR_SEMR]] | PCLKB=2MHz wrong; BGDM/ABCS bit positions swapped |
 | [[RCA_UART_SSR_Manual_Clear]] | Manual SSR.TDRE clear harmful |
+| [[RCA_UART_BaremetalNoOutput]] | No UART output — MSTPCRB wrong addr (0x4001E700→0x40084004) ✅ resolved |
 | [[RCA_I2C_Init_Sequence]] | ICE set before IICRST; missing 0xE0 on ICBRL/ICBRH |
 | [[RCA_I2C_Start_Hang]] | TEND polled after START — never fires, infinite hang |
 | [[RCA_I2C_ACK_NACK]] | ACKBT written before ACKWP; wrong last-byte index |
@@ -81,6 +82,7 @@ Phase 3 (Demo): 3-task LED demo — OS_Delay, Semaphore+Timer sync, preemption.
 | Semaphores (Phase 2b) | ✅ Complete |
 | Software Timers (Phase 2c) | ✅ Complete |
 | Hardware-in-loop test | 🔲 Pending |
+| UART baremetal debug | 🔄 In-progress — C-01 fixed, testing C-03 (channel switch SCI7→SCI0) — [[RCA_UART_BaremetalNoOutput]] |
 
 ---
 

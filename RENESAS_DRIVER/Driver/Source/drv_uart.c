@@ -83,6 +83,16 @@ void UART_Init(UART_t uart, uint32_t baudrate)
     SCI_SMR(n)  = 0x00U;                                        /* async, 8-bit, no parity, 1 stop */
     SCI_SEMR(n) = (uint8_t)(SEMR_BGDM | SEMR_ABCS);            /* BGDM=1(b6), ABCS=1(b4) → /4    */
     SCI_BRR(n)  = (uint8_t)((PCLKB / (4UL * baudrate)) - 1U);  /* baud rate register              */
+
+    /* BRR settling wait — RA6M5 §30.2.20: BRR must be written with TE=RE=0,
+     * and the baud rate generator needs at least 1 bit period to settle before
+     * the first transmission.  At 8 MHz / 115200 baud: 1 bit ≈ 69 cycles.
+     * 1000 NOPs is conservative and covers all supported baud rates.        */
+    for (volatile uint32_t brr_wait = 0U; brr_wait < 1000U; brr_wait++)
+    {
+        __asm volatile("nop");
+    }
+
     SCI_SCR(n)  = (uint8_t)(SCR_TE | SCR_RE);                   /* enable TX and RX                */
 }
 
