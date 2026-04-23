@@ -39,6 +39,10 @@ ICCR1(n) &= ~ICCR1_IICRST; /* Step 5: release reset              */
 
 `ICBR_FIXED_BITS = 0xE0`: hardware requires ICBRL/ICBRH bits[7:5]=111. See [[HW_RA6M5_RIIC]].
 
+### Dynamic Baudrate Calculation
+The `I2C_Init` function accepts an `I2C_SPEED_t` enum (`I2C_SPEED_STANDARD` for 100 kHz, `I2C_SPEED_FAST` for 400 kHz).
+Because the bit rate counter (`br`) is limited to 5 bits (max value 31), `I2C_Init` automatically iterates through the internal reference clock dividers (`ICMR1.CKS` from `/1` to `/128`) to find a divider that allows the `br` value to fit within the 31-limit. This ensures stable 100kHz and 400kHz operation regardless of the `PCLKB` frequency.
+
 ---
 
 ## Pin Configuration
