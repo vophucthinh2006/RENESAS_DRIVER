@@ -223,7 +223,7 @@ void I2C_Start(I2C_t i2c)
         if (--to == 0U)
         {
             i2c_bus_recover(i2c);   /* S-06: attempt 9-clock SCL recovery */
-            return;
+            break;                  /* Proceed to generate START */
         }
     }
 
@@ -280,9 +280,20 @@ uint8_t I2C_Transmit_Address(I2C_t i2c, uint8_t address, I2C_DIR_t dir)
     ICDRT(n) = (uint8_t)((address << 1U) | ((uint8_t)dir & 0x01U));
 
     to = DRV_TIMEOUT_TICKS;
-    while (!(ICSR2(n) & ICSR2_TEND))
+    if (dir == I2C_WRITE)
     {
-        if (--to == 0U) { return 0U; }
+        while (!(ICSR2(n) & ICSR2_TEND))
+        {
+            if (--to == 0U) { return 0U; }
+        }
+    }
+    else
+    {
+        /* For READ address, wait for RDRF (ACK) or NACKF (NACK) */
+        while (!(ICSR2(n) & (ICSR2_RDRF | ICSR2_NACKF)))
+        {
+            if (--to == 0U) { return 0U; }
+        }
     }
 
     if (ICSR2(n) & ICSR2_NACKF)
@@ -350,6 +361,23 @@ uint8_t I2C_Master_Receive_Data(I2C_t i2c, uint8_t *data, uint8_t length)
     if (n > 2U) { return 0U; }
     if (length == 0U) { return 1U; }
 
+    /* DUMMY READ: wait for RDRF from address transmission, then read to start clocking */
+    to = DRV_TIMEOUT_TICKS;
+    while (!(ICSR2(n) & ICSR2_RDRF))
+    {
+        if (--to == 0U) { I2C_Stop(i2c); return 0U; }
+    }
+
+    /* Set ACKBT for the FIRST real data byte */
+    ICMR3(n) |= ICMR3_ACKWP;
+    if (length == 1U) { ICMR3(n) |= ICMR3_ACKBT; }
+    else              { ICMR3(n) &= (uint8_t)~ICMR3_ACKBT; }
+    ICMR3(n) &= (uint8_t)~ICMR3_ACKWP;
+
+    /* Discard address byte, release SCL */
+    volatile uint8_t dummy = ICDRR(n);
+    (void)dummy;
+
     for (i = 0U; i < length; i++)
     {
         to = DRV_TIMEOUT_TICKS;
@@ -358,16 +386,14 @@ uint8_t I2C_Master_Receive_Data(I2C_t i2c, uint8_t *data, uint8_t length)
             if (--to == 0U) { I2C_Stop(i2c); return 0U; }
         }
 
-        ICMR3(n) |= ICMR3_ACKWP;
-        if (i == (uint8_t)(length - 1U))
+        /* Set ACKBT for the NEXT byte (if there is one) */
+        if (i < (uint8_t)(length - 1U))
         {
-            ICMR3(n) |= ICMR3_ACKBT;           /* last byte → NACK  */
+            ICMR3(n) |= ICMR3_ACKWP;
+            if (i == (uint8_t)(length - 2U)) { ICMR3(n) |= ICMR3_ACKBT; }
+            else                             { ICMR3(n) &= (uint8_t)~ICMR3_ACKBT; }
+            ICMR3(n) &= (uint8_t)~ICMR3_ACKWP;
         }
-        else
-        {
-            ICMR3(n) &= (uint8_t)~ICMR3_ACKBT; /* other bytes → ACK */
-        }
-        ICMR3(n) &= (uint8_t)~ICMR3_ACKWP;
 
         data[i] = ICDRR(n);
     }

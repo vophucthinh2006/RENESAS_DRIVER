@@ -91,9 +91,10 @@ PCLKB source: [[HW_RA6M5_ClockTree]].
 | ICCR2 | 3 | SP | STOP condition request |
 | ICCR2 | 1 | ST | START condition request |
 | ICSR2 | 6 | TEND | Transmit complete (byte sent) |
+| ICSR2 | 5 | RDRF | Receive data full (byte received) |
 | ICSR2 | 3 | STOP | STOP condition detected |
 
-**Do not poll TEND after issuing START** — TEND is only valid after a data byte, not after the START condition. See [[RCA_I2C_Start_Hang]].
+**Do not poll TEND after sending a READ address (SLA+R)**. The RIIC automatically transitions to receive mode upon an address match, setting `RDRF=1` (or `NACKF=1` on failure), not `TEND`. Polling `TEND` for a read address will result in an infinite loop/timeout. See [[RCA_I2C_Start_Hang]].
 
 ---
 

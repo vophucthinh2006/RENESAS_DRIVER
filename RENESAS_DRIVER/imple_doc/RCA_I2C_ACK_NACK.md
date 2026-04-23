@@ -26,25 +26,36 @@ RA6M5 RIIC ICMR3 register controls the ACK/NACK bit (ACKBT) sent after each rece
 
 ## Root Cause in Code
 
-The original `I2C_Master_Receive_Data()` had two errors:
+Two major compounded bugs were found in Master Receive Mode:
 
-**Error 1 — ACKBT written before ACKWP set:**
-```c
-/* WRONG: original order */
-ICMR3(n) |= ICMR3_ACKBT;    /* write ignored — ACKWP=0         */
-ICMR3(n) |= ICMR3_ACKWP;    /* unlock came too late            */
-```
+**1. Missing Dummy Read & Late ACKBT Configuration:**
+The original `I2C_Master_Receive_Data` waited for `RDRF` to become 1 before setting `ACKBT` and reading `ICDRR`.
+However, in the RA RIIC, when a read address (`SLA+R`) is sent and acknowledged, the RIIC transfers the address byte to `ICDRR` and sets `RDRF=1`. The SCL line is held low until a **dummy read** of `ICDRR` is performed to start clocking the actual data bytes.
+Because the original code skipped the dummy read, the first byte read was actually the dummy address byte (e.g., `0x71`). Furthermore, the hardware automatically started receiving the real first data byte with `ACKBT=0` (sending an ACK). For a 1-byte read (like `aht20_read_status`), sending an ACK caused the AHT20 sensor to pull SDA low for a second byte, which prevented the STOP condition from being generated and hung the bus.
 
-**Error 2 — Wrong last-byte index:**
-```c
-if (i == (length - 2))       /* WRONG: sends NACK one byte early */
-```
+**2. I2C_Start Recovery Return Bug:**
+When the bus hung, the next call to `I2C_Start` timed out on the `BBSY` flag and triggered `i2c_bus_recover()`. However, immediately after recovery, the function executed a `return;` instead of proceeding to set `ICCR2_ST`. This meant no START condition was generated, causing the subsequent `I2C_Transmit_Address` to timeout and return `AHT20_ERR_NACK`.
 
 ---
 
 ## Fix
 
 ```c
+/* 1. In I2C_Start: change return to break after recovery */
+i2c_bus_recover(i2c);
+break;   /* Proceed to generate START */
+
+/* 2. In I2C_Master_Receive_Data: dummy read and early ACKBT */
+while (!(ICSR2(n) & ICSR2_RDRF)); /* Wait for address byte */
+
+/* Set ACKBT for the first real byte BEFORE releasing SCL */
+ICMR3(n) |= ICMR3_ACKWP;
+if (length == 1U) { ICMR3(n) |= ICMR3_ACKBT; }
+else              { ICMR3(n) &= (uint8_t)~ICMR3_ACKBT; }
+ICMR3(n) &= (uint8_t)~ICMR3_ACKWP;
+
+volatile uint8_t dummy = ICDRR(n); /* Dummy read starts clocking */
+
 /* CORRECT: unlock first, write ACKBT, re-lock */
 ICMR3(n) |= ICMR3_ACKWP;                   /* Step 1: unlock ACKBT     */
 if (i == (uint8_t)(length - 1U))
