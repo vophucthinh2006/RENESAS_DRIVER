@@ -45,6 +45,10 @@ Tags: #in-progress #system
 | [[FW_Scheduler_Core]] | TCB, Priority Bitmap (O(1) via `__CLZ`), Ready List, Task_Delay, Round-Robin |
 | [[FW_Port_RA6M5]] | SysTick config (200 MHz, RVR=199999), NVIC SHPR3, Stack Frame init, EXC_RETURN |
 | [[FW_Context_Switch]] | PendSV assembly, FPU S16-S31 lazy save/restore, SVC first-task launch |
+| [[FW_Semaphore]] | Counting/Binary semaphores, priority-ordered wake, timeout support |
+| [[FW_Software_Timer]] | One-shot/Auto-reload timers, Timer Daemon Task, ISR-minimal callbacks |
+
+Configuration: `Config/rtos_config.h` — central config (cf. FreeRTOSConfig.h).
 
 ---
 
@@ -64,14 +68,18 @@ Tags: #in-progress #system
 
 ## Project Status
 
-Phase 1 (Drivers): All 22 bugs and structural issues resolved. All drivers production-ready for MOCO 8 MHz baseline.
+Phase 1 (Drivers): All 22 bugs resolved. Production-ready.
 
-Phase 2 (RTOS Kernel): Preemptive kernel implemented. Legacy C++ TaskScheduler deleted. Three-task LED demo on P006/P007/P008.
+Phase 2 (RTOS Kernel): Full preemptive kernel with semaphores and software timers.
+
+Phase 3 (Demo): 3-task LED demo — OS_Delay, Semaphore+Timer sync, preemption.
 
 | Milestone | Status |
 |-----------|--------|
 | Driver layer (Phase 1) | ✅ Complete |
-| RTOS kernel (Phase 2) | ✅ Implemented |
+| RTOS kernel (Phase 2) | ✅ Complete |
+| Semaphores (Phase 2b) | ✅ Complete |
+| Software Timers (Phase 2c) | ✅ Complete |
 | Hardware-in-loop test | 🔲 Pending |
 
 ---

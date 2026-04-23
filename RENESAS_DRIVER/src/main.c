@@ -1,244 +1,187 @@
 /**
  * @file    main.c
- * @brief   RTOS Kernel Demo — Three LED tasks on EK-RA6M5
+ * @brief   RTOS Demo — Tasks + Semaphore + Software Timer on EK-RA6M5
  *
  * Demonstrates:
- *   - Three tasks at different priorities toggling P006, P007, P008.
- *   - Priority-based preemption: higher-priority tasks preempt lower.
- *   - Round-Robin: tasks at the same priority share CPU time equally.
- *   - OS_Task_Delay() for tick-based blocking (non-busy-wait).
+ *   Task 1: Toggles LED1 (P006) every 500 ms using OS_Task_Delay.
+ *   Task 2: Waits on a semaphore posted by a Software Timer → toggles LED2
+ * (P007). Task 3: High-priority preemptive task toggling LED3 (P008) every 100
+ * ms.
  *
- * Hardware:
- *   Board:  EK-RA6M5 (R7FA6M5BH3CFC, LQFP176)
- *   LEDs:   P006 (LED1), P007 (LED2), P008 (LED3)
- *   Clock:  ICLK = 200 MHz via PLL (configured by CLK_Init in startup.c)
- *
- * GPIO Control — Direct Register Access (no FSP/HAL):
- *   Port 0 base = 0x40080000
- *   PDR   (direction):   PORT_BASE + 0x02  → bit = 1 for output
- *   PODR  (output data):  PORT_BASE + 0x00  → bit = 1 for HIGH
- *   PFS   (pin function):  0x40080800 + 0x40*port + 0x04*pin
- *   PWPR  (write-protect): 0x40080800 + 0x503
+ * GPIO: Direct register access. No FSP/HAL.
+ * Clock: ICLK = 200 MHz (PLL), configured by CLK_Init() in startup.c.
  */
 
-#include <stdint.h>
 #include "kernel.h"
+#include "semaphore.h"
+#include "software_timer.h"
+#include <stdint.h>
 
 /* ======================================================================
  * GPIO Register Definitions — Port 0 (P006, P007, P008)
  *
- * RA6M5 Hardware Manual §19.2:
- *   PORT_BASE  = 0x4008_0000
- *   Port stride = 0x20 per port
- *   PCNTR1 (offset 0x00): bits[31:16] = PODR, bits[15:0] = PDR
- *   PCNTR3 (offset 0x08): bits[31:16] = PORR, bits[15:0] = POSR
- *     POSR (Port Output Set Register): writing 1 sets the pin HIGH
- *     PORR (Port Output Reset Register): writing 1 sets the pin LOW
+ * PORT_BASE = 0x4008_0000, stride = 0x20.
+ * PCNTR1 (0x00): [31:16]=PODR (output data), [15:0]=PDR (direction).
+ * POSR   (0x08): write 1 to set pin HIGH (atomic, no RMW).
+ * PORR   (0x0A): write 1 to set pin LOW  (atomic, no RMW).
  *
- *   PFS (Pin Function Select):
- *     Base = 0x4008_0800
- *     PmnPFS = base + 0x40*m + 0x04*n
- *     Bit 16 (PMR): 0 = GPIO mode, 1 = peripheral function
- *
- *   PWPR (Write-Protect Register):
- *     Address = 0x4008_0D03
- *     Unlock sequence:  PWPR = 0x00 (clear B0WI)
- *                       PWPR = 0x40 (set PFSWE)
- *     Lock sequence:    PWPR = 0x00 (clear PFSWE)
- *                       PWPR = 0x80 (set B0WI)
+ * PFS_BASE = 0x4008_0800.  PmnPFS = base + 0x40*port + 0x04*pin.
+ * PWPR    = PFS_BASE + 0x503 (write-protect for PFS).
  * ====================================================================== */
 
-#define PORT0_BASE      0x40080000UL
-#define PORT0_PCNTR1    (*(volatile uint32_t *)(PORT0_BASE + 0x000U))
-#define PORT0_PDR       (*(volatile uint16_t *)(PORT0_BASE + 0x002U))
-#define PORT0_PCNTR3    (*(volatile uint32_t *)(PORT0_BASE + 0x008U))
-#define PORT0_POSR      (*(volatile uint16_t *)(PORT0_BASE + 0x008U))  /* Set   */
-#define PORT0_PORR      (*(volatile uint16_t *)(PORT0_BASE + 0x00AU))  /* Reset */
+#define PORT0_BASE 0x40080000UL
+#define PORT0_PCNTR1 (*(volatile uint32_t *)(PORT0_BASE + 0x000U))
+#define PORT0_PDR (*(volatile uint16_t *)(PORT0_BASE + 0x002U))
+#define PORT0_POSR (*(volatile uint16_t *)(PORT0_BASE + 0x008U))
+#define PORT0_PORR (*(volatile uint16_t *)(PORT0_BASE + 0x00AU))
 
-/* Pin Function Select registers for Port 0, pins 6/7/8 */
-#define PFS_BASE        0x40080800UL
-#define P006_PFS        (*(volatile uint32_t *)(PFS_BASE + 0x040U * 0U + 0x004U * 6U))
-#define P007_PFS        (*(volatile uint32_t *)(PFS_BASE + 0x040U * 0U + 0x004U * 7U))
-#define P008_PFS        (*(volatile uint32_t *)(PFS_BASE + 0x040U * 0U + 0x004U * 8U))
+#define PFS_BASE 0x40080800UL
+#define P006_PFS (*(volatile uint32_t *)(PFS_BASE + 0x018U))
+#define P007_PFS (*(volatile uint32_t *)(PFS_BASE + 0x01CU))
+#define P008_PFS (*(volatile uint32_t *)(PFS_BASE + 0x020U))
+#define PWPR (*(volatile uint8_t *)(PFS_BASE + 0x503U))
 
-/* Write-Protect Register for PFS */
-#define PWPR            (*(volatile uint8_t  *)(PFS_BASE + 0x503U))
+#define PWPR_B0WI (1U << 7)
+#define PWPR_PFSWE (1U << 6)
 
-/* PWPR bit positions */
-#define PWPR_B0WI       (1U << 7)   /**< Bit 7: PFS Write Inhibit (B0WI)   */
-#define PWPR_PFSWE      (1U << 6)   /**< Bit 6: PFS Write Enable  (PFSWE)  */
-
-/* PFS bit positions */
-#define PFS_PMR         (1U << 16)  /**< Bit 16: Port Mode — 0=GPIO, 1=peripheral */
-
-/* Pin masks for P006, P007, P008 */
-#define PIN6_MASK       (1U << 6)
-#define PIN7_MASK       (1U << 7)
-#define PIN8_MASK       (1U << 8)
+#define PIN6_MASK (1U << 6)
+#define PIN7_MASK (1U << 7)
+#define PIN8_MASK (1U << 8)
 
 /* ======================================================================
- * Static TCBs — no dynamic allocation
+ * Static OS Objects — No malloc
  * ====================================================================== */
 
-static OS_TCB_t tcb_led1;      /* P006 — 200ms toggle, Priority 2 */
-static OS_TCB_t tcb_led2;      /* P007 — 500ms toggle, Priority 2 */
-static OS_TCB_t tcb_heartbeat; /* P008 —  50ms toggle, Priority 1 */
+static OS_TCB_t tcb_task1; /* LED1 delay-based toggle   */
+static OS_TCB_t tcb_task2; /* LED2 semaphore-driven     */
+static OS_TCB_t tcb_task3; /* LED3 high-prio preemption */
+
+static Semaphore_t sem_led2; /* Binary sem for Task 2     */
+static Timer_t timer_led2;   /* Posts sem_led2 every 1 s  */
 
 /* ======================================================================
- * GPIO Initialisation
- *
- * Sequence:
- *   1. Unlock PWPR (mandatory before writing any PFS register).
- *   2. Configure PFS for each pin: GPIO mode (PMR = 0), no pull-up.
- *   3. Lock PWPR.
- *   4. Set PDR bits for output direction.
- *   5. Clear PODR bits (LEDs off initially — active-low on EK-RA6M5).
+ * GPIO Init — PWPR unlock, PFS config, direction, initial state
  * ====================================================================== */
 
-static void gpio_init(void)
-{
-    /* --- Step 1: Unlock PFS write protection ---
-     *
-     * PWPR security sequence (RA6M5 HW Manual §19.2.5):
-     *   Write 0x00 → clears B0WI (bit 7), allows PFSWE to be modified.
-     *   Write 0x40 → sets PFSWE (bit 6), enables PFS register writes.
-     *
-     * The two-step unlock prevents accidental PFS modification. */
-    PWPR = 0x00U;
-    PWPR = PWPR_PFSWE;
+static void gpio_init(void) {
+  /* Unlock PFS write protection (RA6M5 HW Manual §19.2.5):
+   * Step 1: clear B0WI → allows PFSWE modification.
+   * Step 2: set PFSWE → enables PFS writes. */
+  PWPR = 0x00U;
+  PWPR = PWPR_PFSWE;
 
-    /* --- Step 2: Configure pin functions ---
-     *
-     * PFS = 0x00000000:
-     *   PMR  (bit 16) = 0 → GPIO mode (not peripheral function)
-     *   ASEL (bit  7) = 0 → digital (not analog)
-     *   NCODR(bit  6) = 0 → CMOS output (not open-drain)
-     *   All other bits = 0 → no pull-up, no event trigger */
-    P006_PFS = 0x00000000UL;
-    P007_PFS = 0x00000000UL;
-    P008_PFS = 0x00000000UL;
+  /* Configure pins as GPIO (PMR=0, no pull-up, CMOS output). */
+  P006_PFS = 0x00000000UL;
+  P007_PFS = 0x00000000UL;
+  P008_PFS = 0x00000000UL;
 
-    /* --- Step 3: Lock PFS write protection ---
-     *   Write 0x00 → clears PFSWE.
-     *   Write 0x80 → sets B0WI, preventing further PFSWE changes. */
-    PWPR = 0x00U;
-    PWPR = PWPR_B0WI;
+  /* Re-lock PFS. */
+  PWPR = 0x00U;
+  PWPR = PWPR_B0WI;
 
-    /* --- Step 4: Set pin direction to OUTPUT ---
-     *
-     * PDR (Port Direction Register) — 16-bit register at PORT_BASE + 0x02.
-     * Bit n = 1 → pin n is output.
-     * We OR-in bits 6, 7, 8 to preserve other pin configurations. */
-    PORT0_PDR |= (uint16_t)(PIN6_MASK | PIN7_MASK | PIN8_MASK);
+  /* Set direction: output. */
+  PORT0_PDR |= (uint16_t)(PIN6_MASK | PIN7_MASK | PIN8_MASK);
 
-    /* --- Step 5: LEDs OFF initially ---
-     *
-     * EK-RA6M5 LEDs are active-low: HIGH = OFF, LOW = ON.
-     * Use POSR (Port Output Set Register) to set pins HIGH.
-     * Writing 1 to a bit in POSR sets the corresponding PODR bit. */
-    PORT0_POSR = (uint16_t)(PIN6_MASK | PIN7_MASK | PIN8_MASK);
+  /* LEDs OFF initially (active-low: HIGH = off). */
+  PORT0_POSR = (uint16_t)(PIN6_MASK | PIN7_MASK | PIN8_MASK);
 }
 
-/**
- * @brief  Toggle a pin on Port 0 using atomic set/reset registers.
- *
- * @param  pin_mask  Bitmask for the pin (e.g. PIN6_MASK).
- *
- * Reads the current output state from PCNTR1[31:16] (PODR field).
- * If the pin is HIGH, writes PORR to clear it.
- * If the pin is LOW, writes POSR to set it.
- *
- * Using POSR/PORR is race-free (no read-modify-write on PODR needed).
- */
-static void gpio_toggle(uint16_t pin_mask)
-{
-    /* Read current PODR from the upper 16 bits of PCNTR1. */
-    uint32_t pcntr1 = PORT0_PCNTR1;
-    uint16_t podr   = (uint16_t)(pcntr1 >> 16);
-
-    if ((podr & pin_mask) != 0U) {
-        /* Pin is HIGH → reset (set LOW).
-         * PORR: writing 1 clears the corresponding PODR bit. */
-        PORT0_PORR = pin_mask;
-    } else {
-        /* Pin is LOW → set (set HIGH).
-         * POSR: writing 1 sets the corresponding PODR bit. */
-        PORT0_POSR = pin_mask;
-    }
+/** Toggle a Port 0 pin using atomic POSR/PORR (no read-modify-write). */
+static void gpio_toggle(uint16_t pin_mask) {
+  uint16_t podr = (uint16_t)(PORT0_PCNTR1 >> 16);
+  if ((podr & pin_mask) != 0U) {
+    PORT0_PORR = pin_mask; /* HIGH → LOW  */
+  } else {
+    PORT0_POSR = pin_mask; /* LOW  → HIGH */
+  }
 }
 
 /* ======================================================================
  * Task Functions
- *
- * Each task runs in an infinite loop, toggling its assigned LED and
- * then yielding the CPU via OS_Task_Delay().  The delay puts the task
- * into BLOCKED state; the SysTick handler moves it back to READY
- * when the delay expires.
  * ====================================================================== */
 
 /**
- * @brief  Task 1: Toggle LED1 (P006) every 200 ms.
- *         Priority 2 — same as LED2, so they share CPU via Round-Robin.
+ * Task 1: Toggle LED1 (P006) every 500 ms using OS_Task_Delay.
+ * Priority 3 — lower than Task 3 (preemptable).
  */
-static void task_led1(void *arg)
-{
-    (void)arg;
-    for (;;) {
-        gpio_toggle(PIN6_MASK);
-        OS_Task_Delay(200U);
-    }
+static void task_led1_delay(void *arg) {
+  (void)arg;
+  for (;;) {
+    gpio_toggle(PIN6_MASK);
+    OS_Task_Delay(500U);
+  }
 }
 
 /**
- * @brief  Task 2: Toggle LED2 (P007) every 500 ms.
- *         Priority 2 — same as LED1, Round-Robin scheduling applies.
+ * Task 2: Wait for semaphore, then toggle LED2 (P007).
+ * Priority 3 — same as Task 1 (Round-Robin).
+ * The semaphore is posted by a software timer every 1000 ms.
+ * This demonstrates Timer → Semaphore → Task synchronisation.
  */
-static void task_led2(void *arg)
-{
-    (void)arg;
-    for (;;) {
-        gpio_toggle(PIN7_MASK);
-        OS_Task_Delay(500U);
+static void task_led2_sem(void *arg) {
+  (void)arg;
+  for (;;) {
+    /* Block until the software timer posts the semaphore. */
+    int32_t result = OS_SemPend(&sem_led2, OS_WAIT_FOREVER);
+    if (result == OS_OK) {
+      gpio_toggle(PIN7_MASK);
     }
+  }
 }
 
 /**
- * @brief  Task 3: Heartbeat on LED3 (P008) every 50 ms.
- *         Priority 1 — HIGHER than LED1/LED2, will preempt them.
+ * Task 3: High-priority heartbeat on LED3 (P008) — 100 ms toggle.
+ * Priority 2 — HIGHER than Tasks 1 & 2, demonstrates preemption.
  */
-static void task_heartbeat(void *arg)
-{
-    (void)arg;
-    for (;;) {
-        gpio_toggle(PIN8_MASK);
-        OS_Task_Delay(50U);
-    }
+static void task_led3_preempt(void *arg) {
+  (void)arg;
+  for (;;) {
+    gpio_toggle(PIN8_MASK);
+    OS_Task_Delay(100U);
+  }
+}
+
+/* ======================================================================
+ * Software Timer Callback
+ *
+ * Executed in Timer Daemon Task context (priority 1), NOT in ISR.
+ * Posts the binary semaphore to wake Task 2.
+ * ====================================================================== */
+
+static void timer_led2_callback(void *arg) {
+  Semaphore_t *sem = (Semaphore_t *)arg;
+  (void)OS_SemPost(sem);
 }
 
 /* ======================================================================
  * Application Entry Point
  * ====================================================================== */
 
-int main(void)
-{
-    /* Initialise GPIO: P006, P007, P008 as push-pull outputs. */
-    gpio_init();
+int main(void) {
+  gpio_init();
+  OS_Init();
 
-    /* Initialise the RTOS kernel (creates idle task). */
-    OS_Init();
+  /* Create binary semaphore (initial=0 → Task 2 blocks immediately). */
+  (void)OS_SemCreate(&sem_led2, 0U, 1U);
 
-    /* Create application tasks.
-     * Priority 1 = higher (heartbeat preempts LED tasks).
-     * Priority 2 = lower  (LED1 and LED2 round-robin at same level). */
-    (void)OS_Task_Create(&tcb_led1,      task_led1,      (void *)0, 2U, "LED1_Fast");
-    (void)OS_Task_Create(&tcb_led2,      task_led2,      (void *)0, 2U, "LED2_Slow");
-    (void)OS_Task_Create(&tcb_heartbeat, task_heartbeat,  (void *)0, 1U, "Heartbeat");
+  /* Create software timer: auto-reload, 1000 ms period.
+   * Callback posts sem_led2 → wakes Task 2. */
+  (void)OS_TimerCreate(&timer_led2, timer_led2_callback, (void *)&sem_led2,
+                       1000U, OS_TIMER_AUTO_RELOAD);
+  (void)OS_TimerStart(&timer_led2);
 
-    /* Start the kernel.  Configures SysTick (1 ms, 200 MHz ICLK),
-     * sets PendSV/SysTick to lowest NVIC priority, and launches
-     * the highest-priority ready task.  This function never returns. */
-    OS_Start();
+  /* Create tasks.
+   * Prio 2 = LED3 (highest user task — preempts others).
+   * Prio 3 = LED1 and LED2 (same priority — Round-Robin). */
+  (void)OS_Task_Create(&tcb_task1, task_led1_delay, (void *)0, 3U,
+                       "LED1_Delay");
+  (void)OS_Task_Create(&tcb_task2, task_led2_sem, (void *)0, 3U, "LED2_Sem");
+  (void)OS_Task_Create(&tcb_task3, task_led3_preempt, (void *)0, 2U,
+                       "LED3_Preempt");
 
-    /* Never reached. */
-    return 0;
+  /* Start kernel — never returns.
+   * Timer daemon (prio 1) and idle (prio 31) created by OS_Init(). */
+  OS_Start();
+
+  return 0;
 }

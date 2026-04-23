@@ -120,4 +120,7 @@ In `SysTick_Handler` (every 1 ms):
 
 - [[FW_Port_RA6M5]] — SysTick config, NVIC priorities, stack frame init
 - [[FW_Context_Switch]] — PendSV assembly, FPU context, register save/restore
+- [[FW_Semaphore]] — Counting/binary semaphores with timeout
+- [[FW_Software_Timer]] — One-shot/auto-reload timers, daemon task
 - [[HW_RA6M5_ClockTree]] — ICLK 200 MHz PLL configuration
+
