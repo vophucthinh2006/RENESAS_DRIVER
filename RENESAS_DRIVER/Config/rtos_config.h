@@ -13,13 +13,13 @@
  * Clock & Tick
  * ====================================================================== */
 
-/** ICLK frequency in Hz.  RA6M5 PLL output → 200 MHz. */
-#define OS_CPU_CLOCK_HZ             200000000UL
+/** ICLK frequency in Hz.  CLK_Init() selects MOCO /1 → 8 MHz. */
+#define OS_CPU_CLOCK_HZ             8000000UL
 
 /** Kernel tick rate.  1000 Hz → 1 ms per tick. */
 #define OS_TICK_RATE_HZ             1000U
 
-/** SysTick reload value.  (CPU_CLK / TICK_RATE) − 1 = 199 999. */
+/** SysTick reload value.  (CPU_CLK / TICK_RATE) − 1 = 7 999. */
 #define OS_SYSTICK_RELOAD           ((OS_CPU_CLOCK_HZ / OS_TICK_RATE_HZ) - 1UL)
 
 /* ======================================================================

@@ -5,7 +5,7 @@
  * O(1) bitmap scheduler, per-priority round-robin, tick-based blocking,
  * semaphore timeout integration, and software timer tick dispatch.
  *
- * Target: RA6M5 (Cortex-M33), ICLK = 200 MHz, 1 ms tick.
+ * Target: RA6M5 (Cortex-M33), ICLK = 8 MHz, 1 ms tick.
  */
 
 #include "kernel.h"
@@ -60,6 +60,11 @@ static OS_TCB_t os_idle_tcb;
  * Internal Helpers
  * ====================================================================== */
 
+void OS_ReadyListInsert(OS_TCB_t *tcb);
+void OS_ReadyListRemove(OS_TCB_t *tcb);
+void OS_ReadyListRotate(uint32_t prio);
+void SysTick_Handler(void);
+
 static void os_task_exit_error(void)
 {
     __asm volatile ("cpsid i");
@@ -108,7 +113,7 @@ static uint32_t *os_stack_init(OS_TCB_t *tcb, void (*entry)(void *), void *arg)
  * __CLZ(bitmap) → highest-priority (lowest-numbered) ready level.
  * ====================================================================== */
 
-static void os_ready_list_insert(OS_TCB_t *tcb)
+void OS_ReadyListInsert(OS_TCB_t *tcb)
 {
     uint32_t prio = tcb->priority;
     uint32_t bit  = 31U - prio;
@@ -123,7 +128,7 @@ static void os_ready_list_insert(OS_TCB_t *tcb)
     os_ready_bitmap |= (1UL << bit);
 }
 
-static void os_ready_list_remove(OS_TCB_t *tcb)
+void OS_ReadyListRemove(OS_TCB_t *tcb)
 {
     uint32_t prio = tcb->priority;
     uint32_t bit  = 31U - prio;
@@ -140,6 +145,15 @@ static void os_ready_list_remove(OS_TCB_t *tcb)
         }
     }
     tcb->next = (OS_TCB_t *)0;
+}
+
+void OS_ReadyListRotate(uint32_t prio)
+{
+    if ((prio < OS_MAX_PRIORITIES) &&
+        (os_ready_list[prio] != (OS_TCB_t *)0) &&
+        (os_ready_list[prio]->next != os_ready_list[prio])) {
+        os_ready_list[prio] = os_ready_list[prio]->next;
+    }
 }
 
 /* ======================================================================
@@ -189,9 +203,14 @@ int32_t OS_Task_Create(OS_TCB_t *tcb, void (*entry)(void *), void *arg,
     os_task_table[os_task_count] = tcb;
     os_task_count++;
 
-    os_ready_list_insert(tcb);
+    OS_ReadyListInsert(tcb);
 
     OS_ExitCritical();
+
+    if (os_current_task != (OS_TCB_t *)0) {
+        OS_Schedule();
+    }
+
     return OS_OK;
 }
 
@@ -203,7 +222,7 @@ void OS_Start(void)
      * Context switches never preempt application ISRs. */
     SCB_SHPR3 = 0xFFFF0000UL;
 
-    /* SysTick: 1 ms at 200 MHz.  RVR=199999, processor clock, enable. */
+    /* SysTick: 1 ms at 8 MHz.  RVR=7999, processor clock, enable. */
     SYST_RVR = OS_SYSTICK_RELOAD;
     SYST_CVR = 0U;
     SYST_CSR = SYST_CSR_ENABLE | SYST_CSR_TICKINT | SYST_CSR_CLKSOURCE;
@@ -230,6 +249,12 @@ void OS_Schedule(void)
     candidate    = os_ready_list[highest_prio];
 
     if (candidate != os_current_task) {
+        if ((os_current_task != (OS_TCB_t *)0) &&
+            (os_current_task->state == OS_TASK_RUNNING)) {
+            os_current_task->state = OS_TASK_READY;
+        }
+
+        candidate->state = OS_TASK_RUNNING;
         os_next_task = candidate;
         OS_TriggerPendSV();
     }
@@ -243,7 +268,7 @@ void OS_Task_Delay(uint32_t ticks)
     os_current_task->delay_ticks = ticks;
     os_current_task->state       = OS_TASK_BLOCKED;
     os_current_task->blocked_on  = (void *)0;
-    os_ready_list_remove(os_current_task);
+    OS_ReadyListRemove(os_current_task);
     OS_ExitCritical();
 
     OS_Schedule();
@@ -252,11 +277,7 @@ void OS_Task_Delay(uint32_t ticks)
 void OS_Yield(void)
 {
     OS_EnterCritical();
-    uint32_t prio = os_current_task->priority;
-    if ((os_ready_list[prio] != (OS_TCB_t *)0) &&
-        (os_ready_list[prio]->next != os_ready_list[prio])) {
-        os_ready_list[prio] = os_ready_list[prio]->next;
-    }
+    OS_ReadyListRotate(os_current_task->priority);
     OS_ExitCritical();
     OS_Schedule();
 }
@@ -299,6 +320,8 @@ void SysTick_Handler(void)
     uint32_t i;
     OS_TCB_t *tcb;
 
+    OS_EnterCritical();
+
     os_tick_count++;
 
     /* --- Process blocked tasks --- */
@@ -326,7 +349,7 @@ void SysTick_Handler(void)
             }
 
             tcb->state = OS_TASK_READY;
-            os_ready_list_insert(tcb);
+            OS_ReadyListInsert(tcb);
         }
     }
 
@@ -335,12 +358,10 @@ void SysTick_Handler(void)
 
     /* --- Round-Robin rotation at current priority --- */
     if (os_current_task != (OS_TCB_t *)0) {
-        uint32_t prio = os_current_task->priority;
-        if ((os_ready_list[prio] != (OS_TCB_t *)0) &&
-            (os_ready_list[prio]->next != os_ready_list[prio])) {
-            os_ready_list[prio] = os_ready_list[prio]->next;
-        }
+        OS_ReadyListRotate(os_current_task->priority);
     }
+
+    OS_ExitCritical();
 
     OS_Schedule();
 }

@@ -10,63 +10,10 @@
 #include "semaphore.h"
 #include <string.h>
 
-/* ======================================================================
- * Ready-list helpers (defined in kernel.c, not public API).
- * We re-declare them here as extern to avoid circular header deps.
- * ====================================================================== */
-
-/* These internal functions are in kernel.c — we need access for
- * adding/removing tasks from the ready list when posting/pending. */
-
-/* Forward: we use the public API OS_Schedule / OS_EnterCritical etc.
- * For ready-list insert/remove we duplicate minimal logic here to
- * avoid exposing kernel internals.  Instead, we manipulate task state
- * and let the kernel's SysTick pick up the changes, OR we directly
- * call OS_Schedule after state changes.
- *
- * Design choice: semaphore.c uses the kernel's public critical section
- * and schedule APIs, plus direct manipulation of the ready bitmap and
- * list through a small internal interface. */
-
-/* --- Internal ready-list access (mirrors kernel.c statics) ---
- * These are defined in kernel.c.  We access them via extern because
- * both modules are part of the same RTOS — not a user-facing API. */
-extern volatile uint32_t os_ready_bitmap;
-extern OS_TCB_t         *os_ready_list[];
-
-static void sem_ready_list_insert(OS_TCB_t *tcb)
-{
-    uint32_t prio = tcb->priority;
-    uint32_t bit  = 31U - prio;
-
-    if (os_ready_list[prio] == (OS_TCB_t *)0) {
-        tcb->next = tcb;
-        os_ready_list[prio] = tcb;
-    } else {
-        tcb->next = os_ready_list[prio]->next;
-        os_ready_list[prio]->next = tcb;
-    }
-    os_ready_bitmap |= (1UL << bit);
-}
-
-static void sem_ready_list_remove(OS_TCB_t *tcb)
-{
-    uint32_t prio = tcb->priority;
-    uint32_t bit  = 31U - prio;
-
-    if (tcb->next == tcb) {
-        os_ready_list[prio] = (OS_TCB_t *)0;
-        os_ready_bitmap &= ~(1UL << bit);
-    } else {
-        OS_TCB_t *prev = tcb;
-        while (prev->next != tcb) { prev = prev->next; }
-        prev->next = tcb->next;
-        if (os_ready_list[prio] == tcb) {
-            os_ready_list[prio] = tcb->next;
-        }
-    }
-    tcb->next = (OS_TCB_t *)0;
-}
+/* Ready-list primitives are implemented in kernel.c and shared here so
+ * every mutation follows the same ring/bitmap rules. */
+extern void OS_ReadyListInsert(OS_TCB_t *tcb);
+extern void OS_ReadyListRemove(OS_TCB_t *tcb);
 
 /* ======================================================================
  * Wait-List Helpers
@@ -183,7 +130,7 @@ int32_t OS_SemPend(Semaphore_t *sem, uint32_t timeout)
     self->block_result = OS_OK;
     self->delay_ticks  = timeout;  /* OS_WAIT_FOREVER or N ticks */
 
-    sem_ready_list_remove(self);
+    OS_ReadyListRemove(self);
 
     OS_ExitCritical();
 
@@ -212,7 +159,7 @@ int32_t OS_SemPost(Semaphore_t *sem)
         waiter->block_result = OS_OK;
         waiter->delay_ticks  = 0U;
 
-        sem_ready_list_insert(waiter);
+        OS_ReadyListInsert(waiter);
 
         OS_ExitCritical();
 

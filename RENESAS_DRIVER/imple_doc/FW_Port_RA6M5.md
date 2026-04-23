@@ -24,26 +24,26 @@ SysTick is the ARM standard system timer in the System Control Space (SCS). Used
 |-----|------|-------|---------|
 | 0 | ENABLE | 1 | Counter enabled |
 | 1 | TICKINT | 1 | Exception on count-to-zero |
-| 2 | CLKSOURCE | 1 | Processor clock (ICLK = 200 MHz) |
+| 2 | CLKSOURCE | 1 | Processor clock (ICLK = 8 MHz) |
 | 16 | COUNTFLAG | RO | Set when counter reaches zero |
 
 ### Timing Calculation
 
 ```
-ICLK = 200 MHz (PLL)
+ICLK = 8 MHz (MOCO)
 Desired tick = 1 ms = 1000 Hz
 
 RVR = (ICLK / tick_rate) − 1
-    = (200,000,000 / 1,000) − 1
-    = 199,999
+    = (8,000,000 / 1,000) − 1
+    = 7,999
 
-Period = (199,999 + 1) × (1 / 200,000,000) = 0.001 s = 1 ms  ✓
+Period = (7,999 + 1) × (1 / 8,000,000) = 0.001 s = 1 ms  ✓
 ```
 
 ### Init Code
 
 ```c
-SYST_RVR = 199999U;   /* Reload value for 1 ms */
+SYST_RVR = 7999U;     /* Reload value for 1 ms */
 SYST_CVR = 0U;        /* Clear current value   */
 SYST_CSR = 0x07U;     /* ENABLE | TICKINT | CLKSOURCE */
 ```
@@ -128,4 +128,4 @@ The SVC_Handler sets `CONTROL = 0x02` (SPSEL = 1, privileged) so that all tasks 
 
 - [[FW_Scheduler_Core]] — TCB, ready list, bitmap algorithm
 - [[FW_Context_Switch]] — PendSV assembly walkthrough
-- [[HW_RA6M5_ClockTree]] — ICLK 200 MHz via PLL
+- [[HW_RA6M5_ClockTree]] — ICLK 8 MHz via MOCO baseline
