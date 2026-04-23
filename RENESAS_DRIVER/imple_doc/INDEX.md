@@ -1,15 +1,15 @@
 ---
 type: hub
-status: done
-last_updated: 2026-04-22
+status: in-progress
+last_updated: 2026-04-23
 ---
 
 # RENESAS_DRIVER — Knowledge Base
 
-Tags: #done #system
+Tags: #in-progress #system
 
 > Project: TESTING_2 | Target: R7FA6M5BH3CFC (Cortex-M33) | Board: EK-RA6M5
-> Build: CMake + Ninja, ARM GCC, `file(GLOB_RECURSE)` auto-collects `Driver/Source/*.c` and `src/*.c`
+> Build: CMake + Ninja, ARM GCC, `file(GLOB_RECURSE)` auto-collects `Driver/Source/*.c`, `src/*.c`, `Middleware/Kernel/**/*.c`, `Middleware/Kernel/**/*.S`
 
 ---
 
@@ -38,6 +38,16 @@ Tags: #done #system
 
 ---
 
+## RTOS Kernel
+
+| Note | Covers |
+|------|--------|
+| [[FW_Scheduler_Core]] | TCB, Priority Bitmap (O(1) via `__CLZ`), Ready List, Task_Delay, Round-Robin |
+| [[FW_Port_RA6M5]] | SysTick config (200 MHz, RVR=199999), NVIC SHPR3, Stack Frame init, EXC_RETURN |
+| [[FW_Context_Switch]] | PendSV assembly, FPU S16-S31 lazy save/restore, SVC first-task launch |
+
+---
+
 ## Root Cause Analysis
 
 | Note | Bug(s) |
@@ -54,17 +64,15 @@ Tags: #done #system
 
 ## Project Status
 
-All 22 bugs and structural issues resolved. All drivers production-ready for MOCO 8 MHz baseline.
+Phase 1 (Drivers): All 22 bugs and structural issues resolved. All drivers production-ready for MOCO 8 MHz baseline.
 
-| Severity | Total | Fixed |
-|----------|-------|-------|
-| CRITICAL | 5 | 5 |
-| HIGH | 4 | 4 |
-| MEDIUM | 4 | 4 |
-| LOW | 3 | 3 |
-| STRUCTURAL | 6 | 6 |
+Phase 2 (RTOS Kernel): Preemptive kernel implemented. Legacy C++ TaskScheduler deleted. Three-task LED demo on P006/P007/P008.
 
-Next step: Phase 9 — final validation (clean build, hardware-in-loop test run).
+| Milestone | Status |
+|-----------|--------|
+| Driver layer (Phase 1) | ✅ Complete |
+| RTOS kernel (Phase 2) | ✅ Implemented |
+| Hardware-in-loop test | 🔲 Pending |
 
 ---
 
@@ -74,3 +82,4 @@ Next step: Phase 9 — final validation (clean build, hardware-in-loop test run)
 #in-progress — currently being worked
 #todo — planned
 #blocked — waiting on dependency
+

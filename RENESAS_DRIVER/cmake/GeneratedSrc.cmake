@@ -6,7 +6,15 @@ file(GLOB_RECURSE Source_Files
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Source/*.c
 )
 
-set(ALL_FILES ${Source_Files})
+# RTOS Kernel sources — C implementation and Cortex-M33 assembly port
+file(GLOB_RECURSE Kernel_C_Files
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/src/*.c
+)
+file(GLOB_RECURSE Kernel_ASM_Files
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel/port/*.S
+)
+
+set(ALL_FILES ${Source_Files} ${Kernel_C_Files} ${Kernel_ASM_Files})
 
 add_executable(${PROJECT_NAME}.elf
     ${ALL_FILES}
@@ -34,6 +42,7 @@ target_include_directories(${PROJECT_NAME}.elf
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/test
     ${CMAKE_CURRENT_SOURCE_DIR}/Driver/Include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Middleware/Kernel
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/
 )

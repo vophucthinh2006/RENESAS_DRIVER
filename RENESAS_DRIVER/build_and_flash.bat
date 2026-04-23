@@ -7,7 +7,7 @@ setlocal enabledelayedexpansion
 
 :: ---- Toolchain paths (edit if different on your machine) ----
 set "ARM_TOOLCHAIN_PATH=C:\Program Files (x86)\Arm GNU Toolchain arm-none-eabi\14.2 Rel1\bin"
-set "JLINK_PATH=C:\Program Files\SEGGER\JLink_V934b\JLink.exe"
+set "JLINK_PATH=C:\Program Files\SEGGER\JLink_V910\JLink.exe"
 
 :: Convert to short path to avoid (x86) parsing issues in cmd.exe
 for %%A in ("!ARM_TOOLCHAIN_PATH!") do set "ARM_TOOLCHAIN_PATH=%%~sA"
