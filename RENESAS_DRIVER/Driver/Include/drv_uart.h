@@ -10,9 +10,9 @@
  * Register access uses SCI_REG8(n, offset) where n = channel (0–9).
  * PCLKB: 8 MHz (MOCO, explicitly configured by CLK_Init in drv_clk.c).
  *
- * BRR formula (SEMR: BGDM=1 bit6, ABCS=1 bit4 → effective divider = /4):
- *   BRR = PCLKB / (4 × baudrate) − 1
- *   Example: 8 MHz / (4 × 115200) − 1 = 16  → actual 117 647 baud (2.1% error)
+ * BRR formula (SEMR: BGDM=1 bit6, ABCS=1 bit4 → effective divider = /8):
+ *   BRR = PCLKB / (8 × baudrate) − 1
+ *   Example: 8 MHz / (8 × 115200) − 1 ≈ 8  → actual 111 111 baud (-3.5% error)
  */
 
 /* -----------------------------------------------------------------------

@@ -28,7 +28,7 @@ Base: `0x40080800`. Address per pin: `PFS_BASE + 0x40 * port + 0x04 * pin`.
 | Bit | Name | Function |
 |-----|------|----------|
 | 16 | PMR | 0=GPIO mode, 1=Peripheral function mode |
-| 12:8 | PSEL | Peripheral function selector |
+| 28:24 | PSEL | Peripheral function selector |
 | 6 | NCODR | Open-drain enable (required for I2C) |
 | 4 | PCR | Pull-up resistor enable |
 

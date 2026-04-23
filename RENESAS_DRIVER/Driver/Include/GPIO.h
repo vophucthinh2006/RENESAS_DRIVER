@@ -39,7 +39,7 @@
 #define PmnPFS_PMR       (1U << 16)        /* bit16: 0=GPIO, 1=Peripheral function  */
 #define PmnPFS_NCODR     (1U << 6)         /* bit6:  N-channel open-drain           */
 #define PmnPFS_PCR       (1U << 4)         /* bit4:  Pull-up resistor control       */
-#define PmnPFS_PSEL(x)   ((uint32_t)(x) << 8U)  /* bits[12:8]: peripheral select   */
+#define PmnPFS_PSEL(x)   ((uint32_t)(x) << 24U) /* bits[28:24]: peripheral select   */
 
 #define PmnPFS(m, n)     (*(volatile uint32_t *)(uintptr_t)(PFS_BASE + 0x040U*(m) + 0x004U*(n)))
 #define PWPR             (*(volatile uint8_t  *)(uintptr_t)(PFS_BASE + 0x503U))

@@ -72,15 +72,14 @@ With BGDM=1 and ABCS=1: effective clock per bit = PCLKB / 4.
 ## BRR Formula
 
 With SEMR: BGDM=1 (bit 6), ABCS=1 (bit 4):
-
 ```
-BRR = PCLKB / (4 × baudrate) - 1
+BRR = PCLKB / (8 × baudrate) - 1
 ```
 
 Example at PCLKB = 8 MHz, 115200 baud:
 ```
-BRR = 8 000 000 / (4 × 115 200) - 1 = 16
-Actual baud = 8 000 000 / (4 × 17) = 117 647 Hz  (2.1% error — within 5% spec)
+BRR = 8 000 000 / (8 × 115 200) - 1 = 8  (with rounding)
+Actual baud = 8 000 000 / (8 × 9) = 111 111 Hz  (-3.5% error — within 5% spec)
 ```
 
 PCLKB source: [[HW_RA6M5_ClockTree]].

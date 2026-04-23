@@ -81,8 +81,10 @@ void UART_Init(UART_t uart, uint32_t baudrate)
 
     SCI_SCR(n)  = 0x00U;                                        /* disable TX/RX while configuring */
     SCI_SMR(n)  = 0x00U;                                        /* async, 8-bit, no parity, 1 stop */
-    SCI_SEMR(n) = (uint8_t)(SEMR_BGDM | SEMR_ABCS);            /* BGDM=1(b6), ABCS=1(b4) → /4    */
-    SCI_BRR(n)  = (uint8_t)((PCLKB / (4UL * baudrate)) - 1U);  /* baud rate register              */
+    SCI_SEMR(n) = (uint8_t)(SEMR_BGDM | SEMR_ABCS);            /* BGDM=1(b6), ABCS=1(b4) → /8    */
+    
+    uint32_t divisor = 8UL * baudrate;
+    SCI_BRR(n)  = (uint8_t)((PCLKB + (divisor / 2U)) / divisor - 1U);
 
     /* BRR settling wait — RA6M5 §30.2.20: BRR must be written with TE=RE=0,
      * and the baud rate generator needs at least 1 bit period to settle before

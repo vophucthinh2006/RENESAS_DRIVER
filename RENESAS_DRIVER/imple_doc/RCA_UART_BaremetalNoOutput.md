@@ -111,6 +111,29 @@ case UART0: tx_port=1; tx_pin=11; rx_port=1; rx_pin=10; psel=0x04U; break;
 
 ---
 
+### C-04: Wrong PSEL Bit Shift in GPIO.h
+
+**Bug:** `GPIO.h` defined `PmnPFS_PSEL(x)` with a shift of 8 bits instead of 24 bits.
+On the RA6M5 (and other RA family MCUs), the Peripheral Select (PSEL) field is located at bits 28:24 of the `PmnPFS` register. Bits 12:8 contain drive capacity control bits.
+
+```c
+/* BEFORE (WRONG) */
+#define PmnPFS_PSEL(x)   ((uint32_t)(x) << 8U)  /* bits[12:8]: peripheral select */
+
+/* AFTER (CORRECT) */
+#define PmnPFS_PSEL(x)   ((uint32_t)(x) << 24U) /* bits[28:24]: peripheral select */
+```
+
+**Effect of old bug:**
+1. `uart_pin_config` configured `PmnPFS` with `psel=0x05`.
+2. Due to the wrong shift, bits 12:8 were modified, leaving `PSEL` (bits 28:24) as `0x00`.
+3. PSEL=0 means no peripheral function is routed to the pin. The UART was transmitting internally (TDRE was setting), but the electrical signals never reached the physical P613/P614 pins.
+4. I2C was likely also affected if tested on hardware.
+
+**Status: ✅ Confirmed fixed** — `GPIO.h` and `HW_RA6M5_GPIO.md` have been updated.
+
+---
+
 ## Datasheet Cross-References
 
 | Register | Correct address | Old (wrong) address | Source |
